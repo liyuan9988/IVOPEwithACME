@@ -9,7 +9,8 @@ class DiscretePolicy(snt.Module):
 
     def __init__(self, action_spec):
         super(DiscretePolicy, self).__init__()
-        self.logit_network = snt.Sequential([snt.Linear(32),
+        self.logit_network = snt.Sequential([snt.Flatten(),
+                                             snt.Linear(32),
                                              tf.nn.relu,
                                              snt.Linear(action_spec.num_values)])
 

@@ -125,9 +125,9 @@ class SBEEDLearner(acme.Learner, tf2_savers.TFSaveable):
         td_error = reward + discount * self.value_func(next_obs)
         target = td_error - self.entropy_reg * self.policy(current_obs).log_prob(action)
 
-        with tf.GradientTape as tape:
+        with tf.GradientTape() as tape:
             predict = self.dual_func(current_obs, action)
-            mse = tf.keras.losses.MSE()
+            mse = tf.keras.losses.MeanSquaredError()
             loss = mse(target, predict)
 
         gradient = tape.gradient(loss, self.dual_func.trainable_variables)
@@ -138,8 +138,8 @@ class SBEEDLearner(acme.Learner, tf2_savers.TFSaveable):
     def update_value(self, current_obs, action, reward, discount, next_obs):
         dual_func_res = self.dual_func(current_obs, action)
         policy_reg = self.entropy_reg * self.policy(current_obs).log_prob(action)
-        mse = tf.keras.losses.MSE()
-        with tf.GradientTape as tape:
+        mse = tf.keras.losses.MeanSquaredError()
+        with tf.GradientTape() as tape:
             td_target = reward + discount * (self.value_func(next_obs))
             target = td_target - policy_reg
             loss1 = mse(target, self.value_func(current_obs))
@@ -156,16 +156,16 @@ class SBEEDLearner(acme.Learner, tf2_savers.TFSaveable):
         dual_func_res = self.dual_func(current_obs, action)
         td_target = reward + discount * (self.value_func(next_obs))
         value_func_res = self.value_func(current_obs)
-        mse = tf.keras.losses.MSE()
-        with tf.GradientTape as tape:
+        mse = tf.keras.losses.MeanSquaredError()
+        with tf.GradientTape() as tape:
             policy_reg = self.entropy_reg * self.policy(current_obs).log_prob(action)
             target = td_target - policy_reg
             loss1 = mse(target, value_func_res)
             loss2 = mse(target, dual_func_res)
             loss = loss1 - self.eta * loss2
 
-        gradient = tape.gradient(loss, self.value_func.trainable_variables)
-        self._value_func_optimizer.apply(gradient, self.value_func.trainable_variables)
+        gradient = tape.gradient(loss, self.policy.trainable_variables)
+        self._policy_optimizer.apply(gradient, self.policy.trainable_variables)
         return loss
 
     def step(self):

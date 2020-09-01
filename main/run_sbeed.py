@@ -47,7 +47,7 @@ flags.DEFINE_float('value_learning_rate', 2e-5, 'learning rate for the treatment
 flags.DEFINE_float('dual_learning_rate', 2e-5, 'learning rate for the instrumental_net update')
 flags.DEFINE_float('policy_learning_rate', 2e-5, 'learning rate for the policy_net update')
 flags.DEFINE_float('eta', 0.5, 'weight of dual loss. For SBEED, we need eta in (0,1]. Set eta=0 for PCL.')
-flags.DEFINE_float('etentropy_reg', 0.1, 'entropy regularizer for policy')
+flags.DEFINE_float('entropy_reg', 0.1, 'entropy regularizer for policy')
 flags.DEFINE_integer('dual_iter', 20, 'number of iteration for dual function')
 flags.DEFINE_integer('value_iter', 1, 'number of iteration for value function')
 flags.DEFINE_integer('policy_iter', 5, 'number of iteration for policy')
@@ -65,7 +65,7 @@ def main(_):
     environment_spec = specs.make_environment_spec(environment)
 
     # Create the networks to optimize.
-    value_func, dual_func, policy_net = make_policy_network(environment_spec)
+    value_func, dual_func, policy_net = make_policy_network("bsuite", environment_spec)
 
     # If the agent is non-autoregressive use epsilon=0 which will be a greedy
     # policy.
