@@ -13,15 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""An example BC running on BSuite."""
-
-import functools
-
-
 from absl import app
 from absl import flags
 import acme
-
 
 from acme.agents.tf import actors
 from acme.agents.tf.bc import learning
@@ -34,12 +28,17 @@ from acme import specs
 import sonnet as snt
 import trfl
 
-from src.utils import generate_dataset
+import sys
+from pathlib import Path
+ROOT_PATH = str(Path(__file__).resolve().parent.parent)
+sys.path.append(ROOT_PATH)
+
+from src.utils import generate_dataset  # noqa: E402
 
 # Bsuite flags
 flags.DEFINE_string('bsuite_id', 'deep_sea/0', 'Bsuite id.')
 flags.DEFINE_string('results_dir', '/tmp/bsuite', 'CSV results directory.')
-flags.DEFINE_boolean('overwrite', False, 'Whether to overwrite csv results.')
+flags.DEFINE_boolean('overwrite', True, 'Whether to overwrite csv results.')
 
 # Agent flags
 flags.DEFINE_float('learning_rate', 2e-4, 'Learning rate.')
