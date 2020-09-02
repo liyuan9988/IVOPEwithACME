@@ -35,7 +35,7 @@ ROOT_PATH = str(Path(__file__).resolve().parent.parent)
 sys.path.append(ROOT_PATH)
 
 from src.utils import generate_dataset  # noqa: E402
-from src.pcl.sbeed import SBEEDLearner, make_policy_network  # noqa: E402
+from src.pcl.ivpcl import IVPCLLearner, make_policy_network  # noqa: E402
 
 # Bsuite flags
 flags.DEFINE_string('bsuite_id', 'deep_sea/0', 'Bsuite id.')
@@ -44,11 +44,12 @@ flags.DEFINE_boolean('overwrite', True, 'Whether to overwrite csv results.')
 
 # Agent flags
 flags.DEFINE_float('value_learning_rate', 2e-5, 'learning rate for the treatment_net update')
-flags.DEFINE_float('dual_learning_rate', 2e-5, 'learning rate for the instrumental_net update')
+flags.DEFINE_float('instrumental_learning_rate', 2e-5, 'learning rate for the instrumental_net update')
 flags.DEFINE_float('policy_learning_rate', 2e-5, 'learning rate for the policy_net update')
-flags.DEFINE_float('eta', 0.5, 'weight of dual loss. For SBEED, we need eta in (0,1]. Set eta=0 for PCL.')
+flags.DEFINE_float('stage1_reg', 1e-3, 'ridge regularizer for stage 1 regression')
+flags.DEFINE_float('stage2_reg', 1e-3, 'ridge regularizer for stage 2 regression')
 flags.DEFINE_float('entropy_reg', 0.1, 'entropy regularizer for policy')
-flags.DEFINE_integer('dual_iter', 20, 'number of iteration for dual function')
+flags.DEFINE_integer('instrumental_iter', 20, 'number of iteration for instrumental function')
 flags.DEFINE_integer('value_iter', 1, 'number of iteration for value function')
 flags.DEFINE_integer('policy_iter', 5, 'number of iteration for policy')
 
@@ -64,7 +65,7 @@ def main(_):
     environment_spec = specs.make_environment_spec(environment)
 
     # Create the networks to optimize.
-    value_func, dual_func, policy_net = make_policy_network("bsuite", environment_spec)
+    value_feature, instrumental_feature, policy_net = make_policy_network("bsuite", environment_spec)
 
     # If the agent is non-autoregressive use epsilon=0 which will be a greedy
     # policy.
@@ -86,16 +87,17 @@ def main(_):
         logger=loggers.TerminalLogger('evaluation', time_delta=1.))
 
     # The learner updates the parameters (and initializes them).
-    learner = SBEEDLearner(
-        value_func=value_func,
-        dual_func=dual_func,
-        policy=policy_net,
+    learner = IVPCLLearner(
+        value_feature=value_feature,
+        instrumental_feature=instrumental_feature,
+        policy_net=policy_net,
         value_learning_rate=FLAGS.value_learning_rate,
-        dual_learning_rate=FLAGS.dual_learning_rate,
+        instrumental_learning_rate=FLAGS.instrumental_learning_rate,
         policy_learning_rate=FLAGS.policy_learning_rate,
-        eta=FLAGS.eta,
         entropy_reg=FLAGS.entropy_reg,
-        dual_iter=FLAGS.dual_iter,
+        stage1_reg=FLAGS.stage1_reg,
+        stage2_reg=FLAGS.stage2_reg,
+        instrumental_iter=FLAGS.instrumental_iter,
         value_iter=FLAGS.value_iter,
         policy_iter=FLAGS.policy_iter,
         dataset=dataset,
