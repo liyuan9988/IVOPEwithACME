@@ -12,6 +12,28 @@ import bsuite
 from acme import specs
 import dm_env
 
+from rl_unplugged import dm_control_suite
+
+
+def generate_rl_unplugged_dataset(
+    task_class: str, task_name: str, path: str) -> Tuple[tf.data.Dataset, dm_env.Environment]:
+  if task_class == 'control_suite':
+    task = dm_control_suite.ControlSuite(task_name=task_name)
+  elif task_class == 'humanoid':
+    task = dm_control_suite.CmuThirdParty(task_name=task_name)
+  elif task_class == 'rodent':
+    task = dm_control_suite.Rodent(task_name=task_name)
+
+  dataset = dm_control_suite.dataset(root_path=path,
+                                     data_path=task.data_path,
+                                     shapes=task.shapes,
+                                     num_threads=1,
+                                     batch_size=2,
+                                     uint8_features=task.uint8_features,
+                                     num_shards=1,
+                                     shuffle_buffer_size=10)
+  return task, task.environment
+
 
 def generate_dataset(FLAGS) -> Tuple[tf.data.Dataset, dm_env.Environment]:
     # Create an environment and grab the spec.
