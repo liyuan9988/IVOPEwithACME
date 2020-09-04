@@ -27,7 +27,7 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
     """
 
     def __init__(self,
-                 value_feature: snt.Module,
+                 value_func: snt.Module,
                  instrumental_feature: snt.Module,
                  policy_net: snt.Module,
                  value_learning_rate: float,
@@ -69,14 +69,15 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         # Get an iterator over the dataset.
         self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
 
-        self.value_feature = value_feature
+        self.value_func = value_func
+        self.value_feature = value_func._feature
         self.instrumental_feature = instrumental_feature
         self.policy = policy_net
         self._value_func_optimizer = snt.optimizers.Adam(value_learning_rate)
         self._instrumental_func_optimizer = snt.optimizers.Adam(instrumental_learning_rate)
 
         self._variables = [
-            value_feature.trainable_variables,
+            value_func.trainable_variables,
             instrumental_feature.trainable_variables,
         ]
         self._num_steps = tf.Variable(0, dtype=tf.int32)
@@ -84,7 +85,7 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         # Create a snapshotter object.
         if checkpoint:
             self._snapshotter = tf2_savers.Snapshotter(
-                objects_to_save={'value_feature': value_feature,
+                objects_to_save={'value_func': value_func,
                                  'instrumental_feature': instrumental_feature,
                                  }, time_delta_minutes=60.)
         else:
@@ -100,16 +101,14 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
             o_tm1, a_tm1, r_t, d_t, o_t = inputs.data
             stage1_loss = self.update_instrumental(o_tm1, a_tm1, r_t, d_t, o_t)
 
-        for i in range(self.policy_iter):
-            stage1_input = next(self._iterator)
-            stage2_input = next(self._iterator)
-            stage2_loss = self.update_policy(stage1_input.data, stage2_input.data)
-
         for i in range(self.value_iter):
             stage1_input = next(self._iterator)
             stage2_input = next(self._iterator)
             stage2_loss = self.update_value(stage1_input.data, stage2_input.data)
 
+        stage1_input = next(self._iterator)
+        stage2_input = next(self._iterator)
+        self.update_final_weight(stage1_input.data, stage2_input.data)
         self._num_steps.assign_add(1)
 
         # Compute the global norm of the gradients for logging.
@@ -120,7 +119,8 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
     @tf.function
     def update_instrumental(self, current_obs, action, reward, discount, next_obs):
         discount = tf.expand_dims(discount, axis=1)
-        target = discount * self.value_feature(next_obs) - self.value_feature(current_obs)
+        next_action = self.policy(next_obs)
+        target = discount * self.value_feature(next_obs, next_action) - self.value_feature(current_obs, action)
 
         with tf.GradientTape() as tape:
             feature = self.instrumental_feature(current_obs, action)
@@ -135,42 +135,38 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
     def update_value(self, stage1_input, stage2_input):
         current_obs_1st, action_1st, reward_1st, discount_1st, next_obs_1st = stage1_input
         current_obs_2nd, action_2nd, reward_2nd, discount_2nd, next_obs_2nd = stage2_input
+        next_action_1st = self.policy(next_obs_1st)
 
-        target_2nd = reward_2nd - self.entropy_reg * self.policy(current_obs_2nd).log_prob(action_2nd)
         instrumental_feature_1st = self.instrumental_feature(current_obs_1st, action_1st)
         instrumental_feature_2nd = self.instrumental_feature(current_obs_2nd, action_2nd)
 
         discount_1st = tf.expand_dims(discount_1st, axis=1)
         with tf.GradientTape() as tape:
-            target_1st = discount_1st * self.value_feature(next_obs_1st) - self.value_feature(current_obs_1st)
+            target_1st = discount_1st * self.value_feature(next_obs_1st, next_action_1st)\
+                         - self.value_feature(current_obs_1st, next_action_1st)
             stage1_weight = fit_linear(target_1st, instrumental_feature_1st, self.stage1_reg)
             predicted_feature = linear_reg_pred(instrumental_feature_2nd, stage1_weight)
-            loss = linear_reg_loss(tf.expand_dims(target_2nd, -1), predicted_feature, self.stage2_reg)
+            loss = linear_reg_loss(tf.expand_dims(reward_2nd, -1), predicted_feature, self.stage2_reg)
 
         gradient = tape.gradient(loss, self.value_feature.trainable_variables)
         self._value_func_optimizer.apply(gradient, self.value_feature.trainable_variables)
         return loss
 
     @tf.function
-    def update_policy(self, stage1_input, stage2_input):
+    def update_final_weight(self, stage1_input, stage2_input):
         current_obs_1st, action_1st, reward_1st, discount_1st, next_obs_1st = stage1_input
         current_obs_2nd, action_2nd, reward_2nd, discount_2nd, next_obs_2nd = stage2_input
+        next_action_1st = self.policy(next_obs_1st)
 
         instrumental_feature_1st = self.instrumental_feature(current_obs_1st, action_1st)
         instrumental_feature_2nd = self.instrumental_feature(current_obs_2nd, action_2nd)
+
         discount_1st = tf.expand_dims(discount_1st, axis=1)
-        target_1st = discount_1st * self.value_feature(next_obs_1st) - self.value_feature(current_obs_1st)
-        weight = fit_linear(target_1st, instrumental_feature_1st, self.stage1_reg)
-        predicted_feature = linear_reg_pred(instrumental_feature_2nd, weight)
-
-        with tf.GradientTape() as tape:
-            policy_reg = self.entropy_reg * self.policy(current_obs_2nd).log_prob(action_2nd)
-            target = reward_2nd - policy_reg
-            loss = linear_reg_loss(tf.expand_dims(target,-1), predicted_feature, self.stage2_reg)
-
-        gradient = tape.gradient(loss, self.policy.trainable_variables)
-        self._policy_optimizer.apply(gradient, self.policy.trainable_variables)
-        return loss
+        target_1st = discount_1st * self.value_feature(next_obs_1st, next_action_1st) \
+                         - self.value_feature(current_obs_1st, next_action_1st)
+        stage1_weight = fit_linear(target_1st, instrumental_feature_1st, self.stage1_reg)
+        predicted_feature = linear_reg_pred(instrumental_feature_2nd, stage1_weight)
+        self.value_func._weight = fit_linear(reward_2nd, predicted_feature, self.stage2_reg)
 
     def step(self):
         # Do a batch of SGD.

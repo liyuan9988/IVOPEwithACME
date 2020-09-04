@@ -36,7 +36,7 @@ ROOT_PATH = str(Path(__file__).resolve().parent.parent)
 sys.path.append(ROOT_PATH)
 
 from src.utils import generate_rl_unplugged_dataset  # noqa: E402
-from src.ope.dfiv import DFIVLearner, make_policy_network  # noqa: E402
+from src.ope.dfiv import DFIVLearner, make_ope_networks  # noqa: E402
 
 flags.DEFINE_string('dataset_path', '/tmp/dataset', 'Path to dataset.')
 flags.DEFINE_string('task_name', 'cartpole_swingup', 'Task name.')
@@ -45,8 +45,6 @@ flags.DEFINE_enum('task_class', 'control_suite',
                   'Task class.')
 flags.DEFINE_string('target_policy_path', '', 'Path to target policy snapshot')
 
-flags.DEFINE_string('results_dir', '/tmp/bsuite', 'CSV results directory.')
-flags.DEFINE_boolean('overwrite', True, 'Whether to overwrite csv results.')
 
 # Agent flags
 flags.DEFINE_float('value_learning_rate', 2e-5, 'learning rate for the treatment_net update')
@@ -54,12 +52,10 @@ flags.DEFINE_float('instrumental_learning_rate', 2e-5, 'learning rate for the in
 flags.DEFINE_float('policy_learning_rate', 2e-5, 'learning rate for the policy_net update')
 flags.DEFINE_float('stage1_reg', 1e-3, 'ridge regularizer for stage 1 regression')
 flags.DEFINE_float('stage2_reg', 1e-3, 'ridge regularizer for stage 2 regression')
-flags.DEFINE_float('entropy_reg', 0.1, 'entropy regularizer for policy')
 flags.DEFINE_integer('instrumental_iter', 20, 'number of iteration for instrumental function')
 flags.DEFINE_integer('value_iter', 1, 'number of iteration for value function')
-flags.DEFINE_integer('policy_iter', 5, 'number of iteration for policy')
 
-flags.DEFINE_integer('batch_size', 16, 'Batch size.')
+flags.DEFINE_integer('batch_size', 100, 'Batch size.')
 flags.DEFINE_integer('evaluate_every', 100, 'Evaluation period.')
 flags.DEFINE_integer('evaluation_episodes', 10, 'Evaluation episodes.')
 
@@ -73,7 +69,7 @@ def main(_):
   environment_spec = specs.make_environment_spec(environment)
 
   # Create the networks to optimize.
-  value_feature, instrumental_feature = make_ope_networks(environment_spec)
+  value_func, instrumental_feature = make_ope_networks(environment_spec)
 
   # Load pretrained target policy network.
   policy_net = tf.saved_model.load(FLAGS.target_policy_path)
@@ -83,18 +79,15 @@ def main(_):
 
   # The learner updates the parameters (and initializes them).
   learner = DFIVLearner(
-      value_feature=value_feature,
+      value_func=value_func,
       instrumental_feature=instrumental_feature,
       policy_net=policy_net,
       value_learning_rate=FLAGS.value_learning_rate,
       instrumental_learning_rate=FLAGS.instrumental_learning_rate,
-      policy_learning_rate=FLAGS.policy_learning_rate,
-      entropy_reg=FLAGS.entropy_reg,
       stage1_reg=FLAGS.stage1_reg,
       stage2_reg=FLAGS.stage2_reg,
       instrumental_iter=FLAGS.instrumental_iter,
       value_iter=FLAGS.value_iter,
-      policy_iter=FLAGS.policy_iter,
       dataset=dataset,
       counter=learner_counter)
 
