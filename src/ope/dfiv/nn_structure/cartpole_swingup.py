@@ -1,7 +1,8 @@
 from typing import Tuple
 import sonnet as snt
 import tensorflow as tf
-import tensorflow_probability as tfp
+from acme.tf import utils as tf2_utils
+from acme.tf import networks
 from acme.specs import EnvironmentSpec
 
 
@@ -9,17 +10,20 @@ class InstrumentalFeature(snt.Module):
 
     def __init__(self):
         super(InstrumentalFeature, self).__init__()
-        self._net = snt.Sequential([snt.Linear(128),
-                                    tf.nn.relu,
-                                    snt.Linear(64),
-                                    tf.nn.relu,
-                                    snt.Linear(32),
-                                    tf.nn.relu])
-
-        self.flat = tf.keras.layers.Flatten()
+        self._net = snt.Sequential([networks.LayerNormMLP([1024,1024,512], activate_final=True)])
 
     def __call__(self, obs, action):
-        data = tf.concat([self.flat(obs), action], axis=1)
+        data = tf.concat([tf2_utils.batch_concat(obs), action], axis=1)
+        return self._net(data)
+
+class ValueFeature(snt.Module):
+
+    def __init__(self):
+        super(ValueFeature, self).__init__()
+        self._net = snt.Sequential([snt.Sequential([networks.LayerNormMLP([512, 512, 512], activate_final=True)])])
+
+    def __call__(self, obs, action):
+        data = tf.concat([tf2_utils.batch_concat(obs), action], axis=1)
         return self._net(data)
 
 
@@ -27,19 +31,11 @@ class ValueFunction(snt.Module):
 
     def __init__(self):
         super(ValueFunction, self).__init__()
-        self._feature = snt.Sequential([snt.Linear(128),
-                                        tf.nn.relu,
-                                        snt.Linear(64),
-                                        tf.nn.relu,
-                                        snt.Linear(32),
-                                        tf.nn.relu])
-
-        self.flat = tf.keras.layers.Flatten()
-        self._weight = tf.random.uniform((32, 1))
+        self._feature = ValueFeature()
+        self._weight = tf.random.uniform((512, 1))
 
     def __call__(self, obs, action):
-        data = tf.concat([self.flat(obs), action], axis=1)
-        return tf.matmul(self._feature(data), self._weight)
+        return tf.matmul(self._feature(obs, action), self._weight)
 
 
 def make_value_func_cartpole() -> Tuple[snt.Module, snt.Module]:

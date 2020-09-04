@@ -26,7 +26,7 @@ from acme.utils import loggers
 from acme import specs
 
 import sonnet as snt
-import tensorflow.compat.v2 as tf
+import tensorflow as tf
 import trfl
 
 import sys
@@ -45,7 +45,6 @@ flags.DEFINE_enum('task_class', 'control_suite',
                   'Task class.')
 flags.DEFINE_string('target_policy_path', '', 'Path to target policy snapshot')
 
-
 # Agent flags
 flags.DEFINE_float('value_learning_rate', 2e-5, 'learning rate for the treatment_net update')
 flags.DEFINE_float('instrumental_learning_rate', 2e-5, 'learning rate for the instrumental_net update')
@@ -53,44 +52,66 @@ flags.DEFINE_float('policy_learning_rate', 2e-5, 'learning rate for the policy_n
 flags.DEFINE_float('stage1_reg', 1e-3, 'ridge regularizer for stage 1 regression')
 flags.DEFINE_float('stage2_reg', 1e-3, 'ridge regularizer for stage 2 regression')
 flags.DEFINE_integer('instrumental_iter', 20, 'number of iteration for instrumental function')
-flags.DEFINE_integer('value_iter', 1, 'number of iteration for value function')
+flags.DEFINE_integer('value_iter', 10, 'number of iteration for value function')
 
-flags.DEFINE_integer('batch_size', 100, 'Batch size.')
-flags.DEFINE_integer('evaluate_every', 100, 'Evaluation period.')
+flags.DEFINE_integer('batch_size', 5000, 'Batch size.')
+flags.DEFINE_integer('evaluate_every', 10, 'Evaluation period.')
 flags.DEFINE_integer('evaluation_episodes', 10, 'Evaluation episodes.')
 
 FLAGS = flags.FLAGS
 
+def eval_model(test_data, value_func, policy):
+    current_obs, action, reward, discount, next_obs, _ = test_data.data
+    next_action = policy(tf2_utils.batch_concat(next_obs))
+    target = tf.expand_dims(reward, axis=1) + tf.expand_dims(discount, axis=1) * value_func(next_obs, next_action)
+    return tf.norm(target - value_func(current_obs, action)) ** 2
 
 def main(_):
-  # Load the offline dataset and environment.
-  dataset, environment = generate_rl_unplugged_dataset(
-      FLAGS.task_class, FLAGS.task_name, FLAGS.dataset_path)
-  environment_spec = specs.make_environment_spec(environment)
+    # Load the offline dataset and environment.
+    full_dataset, environment = generate_rl_unplugged_dataset(
+        FLAGS.task_class, FLAGS.task_name, FLAGS.dataset_path)
+    environment_spec = specs.make_environment_spec(environment)
 
-  # Create the networks to optimize.
-  value_func, instrumental_feature = make_ope_networks(environment_spec)
+    full_dataset = full_dataset.shuffle(10000)
+    test_data = full_dataset.take(1000)
+    train_data = full_dataset.skip(1000)
+    train_data = train_data.shuffle(20000)
 
-  # Load pretrained target policy network.
-  policy_net = tf.saved_model.load(FLAGS.target_policy_path)
+    test_data = test_data.batch(1000)
+    test_data = next(iter(test_data))
 
-  counter = counting.Counter()
-  learner_counter = counting.Counter(counter, prefix='learner')
+    dataset = train_data.batch(FLAGS.batch_size)
 
-  # The learner updates the parameters (and initializes them).
-  learner = DFIVLearner(
-      value_func=value_func,
-      instrumental_feature=instrumental_feature,
-      policy_net=policy_net,
-      value_learning_rate=FLAGS.value_learning_rate,
-      instrumental_learning_rate=FLAGS.instrumental_learning_rate,
-      stage1_reg=FLAGS.stage1_reg,
-      stage2_reg=FLAGS.stage2_reg,
-      instrumental_iter=FLAGS.instrumental_iter,
-      value_iter=FLAGS.value_iter,
-      dataset=dataset,
-      counter=learner_counter)
+
+
+    # Create the networks to optimize.
+    value_func, instrumental_feature = make_ope_networks("cartpole_swingup", environment_spec)
+
+    # Load pretrained target policy network.
+    policy_net = tf.saved_model.load(FLAGS.target_policy_path)
+
+    counter = counting.Counter()
+    learner_counter = counting.Counter(counter, prefix='learner')
+
+    # The learner updates the parameters (and initializes them).
+    learner = DFIVLearner(
+        value_func=value_func,
+        instrumental_feature=instrumental_feature,
+        policy_net=policy_net,
+        value_learning_rate=FLAGS.value_learning_rate,
+        instrumental_learning_rate=FLAGS.instrumental_learning_rate,
+        stage1_reg=FLAGS.stage1_reg,
+        stage2_reg=FLAGS.stage2_reg,
+        instrumental_iter=FLAGS.instrumental_iter,
+        value_iter=FLAGS.value_iter,
+        dataset=dataset,
+        counter=learner_counter)
+
+    while True:
+        for _ in range(FLAGS.evaluate_every):
+            learner.step()
+        print(eval_model(test_data, value_func, policy_net))
 
 
 if __name__ == '__main__':
-  app.run(main)
+    app.run(main)

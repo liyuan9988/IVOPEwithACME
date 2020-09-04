@@ -32,7 +32,7 @@ def generate_rl_unplugged_dataset(
                                      uint8_features=task.uint8_features,
                                      num_shards=1,
                                      shuffle_buffer_size=10)
-  return task, task.environment
+  return dataset, task.environment
 
 
 def generate_dataset(FLAGS) -> Tuple[tf.data.Dataset, dm_env.Environment]:
