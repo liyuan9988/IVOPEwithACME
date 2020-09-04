@@ -12,7 +12,7 @@ import bsuite
 from acme import specs
 import dm_env
 
-from rl_unplugged import dm_control_suite
+from src.utils import dm_control_suite
 
 
 def generate_rl_unplugged_dataset(
