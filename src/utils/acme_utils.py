@@ -1,16 +1,18 @@
-import tensorflow as tf
-from acme import types
-import tree
-import operator
-import reverb
 import functools
+import operator
 from typing import Tuple
+
+from acme import specs
+from acme import types
 from acme.agents.tf.dqfd import bsuite_demonstrations
-import bsuite
+from acme.wrappers import base as wrapper_base
 from acme.wrappers import single_precision
 import bsuite
-from acme import specs
 import dm_env
+import numpy as np
+import reverb
+import tensorflow as tf
+import tree
 
 from rl_unplugged import dm_control_suite
 
@@ -119,3 +121,51 @@ def n_step_transition_from_episode(observations: types.NestedTensor,
     )
 
     return reverb.ReplaySample(info=info, data=(o_t, a_t, r_t, d_t, o_tp1))
+
+
+class ClippedGaussianNoisyActionWrapper(wrapper_base.EnvironmentWrapper):
+  """Environment wrapper to add Gaussian action noise and clip to spec."""
+
+  def __init__(self, environment: dm_env.Environment, noise_std: float = 0.):
+    super().__init__(environment)
+    self._noise_std = noise_std
+    self._action_spec = self._environment.action_spec()
+
+  def step(self, action: types.NestedArray) -> dm_env.TimeStep:
+
+    def _add_noise(value, spec: specs.BoundedArray):
+      """Add clipped Gaussian noise to one action array."""
+      if value is not None:
+        value = np.array(value, copy=False)
+        value += np.random.normal(scale=self._noise_std,
+                                  size=value.shape)
+        value = np.clip(value, spec.minimum, spec.maximum)
+      return value
+
+    action = tree.map_structure(_add_noise, action, self._action_spec)
+    return self._environment.step(action)
+
+
+class RandomActionWrapper(wrapper_base.EnvironmentWrapper):
+  """Environment wrapper to play a random discrete action with a probablity."""
+
+  def __init__(self, environment: dm_env.Environment, random_prob: float = 0.):
+    super().__init__(environment)
+    self._random_prob = random_prob
+    if not 0 <= random_prob <= 1:
+      raise ValueError(f'random_prob ({random_prob}) must be within [0, 1]')
+
+    self._action_spec = self._environment.action_spec()
+    if not all(map(lambda spec: isinstance(spec, specs.DiscreteArray),
+                   tree.flatten(self._action_spec))):
+      raise ValueError('RandomActionWrapper requires the action_spec to be a '
+                       'DiscreteArray or a nested DiscreteArray.')
+
+  def step(self, action: types.NestedArray) -> dm_env.TimeStep:
+    if np.random.uniform() < self._random_prob:
+      # Replace with a random action.
+      action = tree.map_structure(
+          lambda spec: np.random.randint(spec.num_values, dtype=spec.dtype),
+          self._action_spec)
+    return self._environment.step(action)
+
