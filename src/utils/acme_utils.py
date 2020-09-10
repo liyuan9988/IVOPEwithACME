@@ -11,14 +11,19 @@ import bsuite
 import dm_env
 import numpy as np
 import reverb
+from rl_unplugged import dm_control_suite
 import tensorflow as tf
 import tree
 
-from rl_unplugged import dm_control_suite
+from . import bsuite_offline_dataset
 
 
-def generate_rl_unplugged_dataset(
-    task_class: str, task_name: str, path: str) -> Tuple[tf.data.Dataset, dm_env.Environment]:
+def load_rl_unplugged_dataset(
+    task_class: str,
+    task_name: str,
+    path: str,
+    num_shards: int) -> Tuple[tf.data.Dataset, dm_env.Environment]:
+  """Load RL Unplugged datasets."""
   if task_class == 'control_suite':
     task = dm_control_suite.ControlSuite(task_name=task_name)
   elif task_class == 'humanoid':
@@ -32,9 +37,45 @@ def generate_rl_unplugged_dataset(
                                      num_threads=1,
                                      batch_size=2,
                                      uint8_features=task.uint8_features,
-                                     num_shards=1,
+                                     num_shards=num_shards,
                                      shuffle_buffer_size=10)
-  return task, task.environment
+  return dataset, task.environment
+
+
+def load_offline_dm_control_dataset(
+    task_name: str,
+    path: str,
+    num_shards: int) -> Tuple[tf.data.Dataset, dm_env.Environment]:
+  """Reuse dm_control_suite to load offline datasets from a different path."""
+  task = dm_control_suite.ControlSuite(task_name=task_name)
+  dataset = dm_control_suite.dataset(root_path=path,
+                                     data_path='',
+                                     shapes=task.shapes,
+                                     num_threads=1,
+                                     batch_size=2,
+                                     uint8_features=task.uint8_features,
+                                     num_shards=num_shards,
+                                     shuffle_buffer_size=10)
+  return dataset, task.environment
+
+
+def load_offline_bsuite_dataset(
+    bsuite_id: str,
+    path: str,
+    single_precision_wrapper: bool = True
+) -> Tuple[tf.data.Dataset, dm_env.Environment]:
+  """Load bsuite offline dataset."""
+  environment = bsuite.load_from_id(bsuite_id)
+  if single_precision_wrapper:
+    environment = single_precision.SinglePrecisionWrapper(environment)
+  shapes, dtypes = bsuite_offline_dataset.dataset_params(environment)
+  dataset = bsuite_offline_dataset.dataset(path=path,
+                                           shapes=shapes,
+                                           dtypes=dtypes,
+                                           num_threads=1,
+                                           batch_size=2,
+                                           shuffle_buffer_size=10)
+  return dataset, environment
 
 
 def generate_dataset(FLAGS) -> Tuple[tf.data.Dataset, dm_env.Environment]:
