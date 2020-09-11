@@ -1,9 +1,9 @@
 """Offline bsuite datasets."""
 
 import functools
-import glob
 from typing import Dict, Tuple
 
+import dm_env
 import numpy as np
 import reverb
 import tensorflow as tf
@@ -30,11 +30,11 @@ def _parse_seq_tf_example(example, shapes, dtypes):
 
   restructured = {}
   for k, v in parsed.items():
-    dtype = dtypes[k]
+    dtype = tf.as_dtype(dtypes[k])
     if v.dtype == dtype:
       restructured[k] = parsed[k]
     else:
-      restructured[k] = parsed[k].astype(dtype)
+      restructured[k] = tf.cast(parsed[k], dtype)
 
   return restructured
 
@@ -61,7 +61,9 @@ def _build_sarsa_example(sequences):
   a_tm1 = tree.map_structure(lambda t: t[0], sequences['action'])
   a_t = tree.map_structure(lambda t: t[1], sequences['action'])
   r_t = tree.map_structure(lambda t: t[0], sequences['reward'])
-  p_t = tree.map_structure(lambda t: t[0], sequences['discount'])
+  p_t = tree.map_structure(
+      lambda d, st: d[0] * tf.cast(st[1] != dm_env.StepType.LAST, d.dtype),
+      sequences['discount'], sequences['step_type'])
 
   info = reverb.SampleInfo(key=tf.constant(0, tf.uint64),
                            probability=tf.constant(1.0, tf.float64),
@@ -98,12 +100,12 @@ def dataset(path: str,
             dtypes: Dict[str, type],  # pylint:disable=g-bare-generic
             num_threads: int,
             batch_size: int,
+            num_shards: int,
             shuffle_buffer_size: int = 100000,
             sarsa: bool = True) -> tf.data.Dataset:
   """Create tf dataset for training."""
 
-  filenames = glob.glob(f'{path}-?????-of-?????')
-  num_shards = len(filenames)
+  filenames = [f'{path}-{i:05d}-of-{num_shards:05d}' for i in range(num_shards)]
   file_ds = tf.data.Dataset.from_tensor_slices(filenames)
   file_ds = file_ds.repeat().shuffle(num_shards)
 
