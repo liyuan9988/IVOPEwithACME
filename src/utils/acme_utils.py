@@ -20,6 +20,30 @@ from src.utils import bsuite_offline_dataset
 from src.utils import dm_control_suite
 
 
+def load_rl_unplugged_dataset(
+        task_class: str,
+        task_name: str,
+        path: str,
+        num_shards: int) -> Tuple[tf.data.Dataset, dm_env.Environment]:
+    """Load RL Unplugged datasets."""
+    if task_class == 'control_suite':
+        task = dm_control_suite.ControlSuite(task_name=task_name)
+    elif task_class == 'humanoid':
+        task = dm_control_suite.CmuThirdParty(task_name=task_name)
+    elif task_class == 'rodent':
+        task = dm_control_suite.Rodent(task_name=task_name)
+
+    dataset = dm_control_suite.dataset(root_path=path,
+                                       data_path=task.data_path,
+                                       shapes=task.shapes,
+                                       num_threads=1,
+                                       batch_size=2,
+                                       uint8_features=task.uint8_features,
+                                       num_shards=num_shards,
+                                       shuffle_buffer_size=10)
+    return dataset, task.environment
+
+
 def load_offline_dm_control_dataset(
         task_name: str,
         root_path: str,
