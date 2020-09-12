@@ -1,38 +1,66 @@
-import tensorflow as tf
-from acme import types
-import tree
-import operator
-import reverb
 import functools
+import operator
 from typing import Tuple
+
+from acme import specs
+from acme import types
 from acme.agents.tf.dqfd import bsuite_demonstrations
-import bsuite
+from acme.wrappers import base as wrapper_base
 from acme.wrappers import single_precision
 import bsuite
-from acme import specs
 import dm_env
 
+import numpy as np
+import reverb
+
+import tensorflow as tf
+import tree
+
+from src.utils import bsuite_offline_dataset
 from src.utils import dm_control_suite
 
 
-def generate_rl_unplugged_dataset(
-    task_class: str, task_name: str, path: str) -> Tuple[tf.data.Dataset, dm_env.Environment]:
-  if task_class == 'control_suite':
+def load_offline_dm_control_dataset(
+        task_name: str,
+        root_path: str,
+        data_path: str,
+        num_shards: int = 1,
+        num_threads: int = 1,
+        batch_size: int = 2) -> Tuple[tf.data.Dataset, dm_env.Environment]:
+    """Reuse dm_control_suite to load offline datasets from a different path."""
+    # Data file path format: {root_path}/{data_path}-?????-of-{num_shards:05d}
     task = dm_control_suite.ControlSuite(task_name=task_name)
-  elif task_class == 'humanoid':
-    task = dm_control_suite.CmuThirdParty(task_name=task_name)
-  elif task_class == 'rodent':
-    task = dm_control_suite.Rodent(task_name=task_name)
+    dataset = dm_control_suite.dataset(root_path=root_path,
+                                       data_path=data_path,
+                                       shapes=task.shapes,
+                                       num_threads=num_threads,
+                                       batch_size=batch_size,
+                                       uint8_features=task.uint8_features,
+                                       num_shards=num_shards,
+                                       shuffle_buffer_size=10)
+    return dataset, task.environment
 
-  dataset = dm_control_suite.dataset(root_path=path,
-                                     data_path=task.data_path,
-                                     shapes=task.shapes,
-                                     num_threads=1,
-                                     batch_size=2,
-                                     uint8_features=task.uint8_features,
-                                     num_shards=1,
-                                     shuffle_buffer_size=10)
-  return dataset, task.environment
+
+def load_offline_bsuite_dataset(
+        bsuite_id: str,
+        path: str,
+        num_shards: int = 1,
+        num_threads: int = 1,
+        batch_size: int = 2,
+        single_precision_wrapper: bool = True) -> Tuple[tf.data.Dataset, dm_env.Environment]:
+    """Load bsuite offline dataset."""
+    # Data file path format: {path}-?????-of-{num_shards:05d}
+    environment = bsuite.load_from_id(bsuite_id)
+    if single_precision_wrapper:
+        environment = single_precision.SinglePrecisionWrapper(environment)
+    params = bsuite_offline_dataset.dataset_params(environment)
+    dataset = bsuite_offline_dataset.dataset(path=path,
+                                             num_threads=num_threads,
+                                             batch_size=batch_size,
+                                             num_shards=num_shards,
+                                             shuffle_buffer_size=10,
+                                             **params)
+    return dataset, environment
 
 
 def generate_dataset(FLAGS) -> Tuple[tf.data.Dataset, dm_env.Environment]:
@@ -119,3 +147,49 @@ def n_step_transition_from_episode(observations: types.NestedTensor,
     )
 
     return reverb.ReplaySample(info=info, data=(o_t, a_t, r_t, d_t, o_tp1))
+
+
+class ClippedGaussianNoisyActionWrapper(wrapper_base.EnvironmentWrapper):
+    """Environment wrapper to add Gaussian action noise and clip to spec."""
+
+    def __init__(self, environment: dm_env.Environment, noise_std: float = 0.):
+        super().__init__(environment)
+        self._noise_std = noise_std
+        self._action_spec = self._environment.action_spec()
+
+    def step(self, action: types.NestedArray) -> dm_env.TimeStep:
+        def _add_noise(value, spec: specs.BoundedArray):
+            """Add clipped Gaussian noise to one action array."""
+            if value is not None:
+                value = np.array(value, copy=False)
+                value += np.random.normal(scale=self._noise_std,
+                                          size=value.shape)
+                value = np.clip(value, spec.minimum, spec.maximum)
+            return value
+
+        action = tree.map_structure(_add_noise, action, self._action_spec)
+        return self._environment.step(action)
+
+
+class RandomActionWrapper(wrapper_base.EnvironmentWrapper):
+    """Environment wrapper to play a random discrete action with a probablity."""
+
+    def __init__(self, environment: dm_env.Environment, random_prob: float = 0.):
+        super().__init__(environment)
+        self._random_prob = random_prob
+        if not 0 <= random_prob <= 1:
+            raise ValueError(f'random_prob ({random_prob}) must be within [0, 1]')
+
+        self._action_spec = self._environment.action_spec()
+        if not all(map(lambda spec: isinstance(spec, specs.DiscreteArray),
+                       tree.flatten(self._action_spec))):
+            raise ValueError('RandomActionWrapper requires the action_spec to be a '
+                             'DiscreteArray or a nested DiscreteArray.')
+
+    def step(self, action: types.NestedArray) -> dm_env.TimeStep:
+        if np.random.uniform() < self._random_prob:
+            # Replace with a random action.
+            action = tree.map_structure(
+                lambda spec: np.random.randint(spec.num_values, dtype=spec.dtype),
+                self._action_spec)
+        return self._environment.step(action)
