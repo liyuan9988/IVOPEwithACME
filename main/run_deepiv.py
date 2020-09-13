@@ -54,7 +54,7 @@ FLAGS = flags.FLAGS
 
 def eval_model(test_data, value_func, policy):
     current_obs, action, reward, discount, next_obs, _ = test_data.data
-    next_action = policy(tf2_utils.batch_concat(next_obs))
+    next_action = policy(next_obs)
     target = tf.expand_dims(reward, axis=1) + tf.expand_dims(discount, axis=1) * value_func(next_obs, next_action)
     return tf.norm(target - value_func(current_obs, action)) ** 2
 
@@ -88,7 +88,7 @@ def main(_):
 
 
     # Create the networks to optimize.
-    value_func, mixture_density = make_ope_networks("cartpole_swingup", environment_spec)
+    value_func, mixture_density = make_ope_networks(problem_config["task_name"], environment_spec)
 
     # Load pretrained target policy network.
     policy_net = load_policy_net(problem_config["task_name"], problem_config["policy_param"])

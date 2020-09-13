@@ -13,15 +13,17 @@ class MixtureDensity(snt.Module):
         super(MixtureDensity, self).__init__()
         self._net = snt.Sequential([networks.LayerNormMLP([1024, 1024, 512], activate_final=True)])
         self._logits = snt.Linear(num_cat)
-        self._locs_weight = tf.Variable(tf.random.normal([512, num_cat, 5]))
-        self._locs_bias = tf.Variable(tf.random.normal([num_cat, 5]))
-        self._scale_weight = tf.Variable(tf.random.normal([512, num_cat, 5]))
-        self._scale_bias = tf.Variable(tf.random.normal([num_cat, 5]))
+        self._locs_weight = tf.Variable(tf.random.normal([512, num_cat, 8]))
+        self._locs_bias = tf.Variable(tf.random.normal([num_cat, 8]))
+        self._scale_weight = tf.Variable(tf.random.normal([512, num_cat, 8]))
+        self._scale_bias = tf.Variable(tf.random.normal([num_cat, 8]))
         self.num_cat = num_cat
 
     def __call__(self, obs, action):
         tfd = tfp.distributions
-        data = tf.concat([tf2_utils.batch_concat(obs), action], axis=1)
+        obs_aug = tf.squeeze(obs, 1)
+        action_aug = tf.one_hot(action, 3)
+        data = tf.concat([obs_aug, action_aug], axis=1)
         feature = self._net(data)
         logits = self._logits(feature)
         locs = tf.einsum("ij,jkl->ikl", feature, self._locs_weight) + self._locs_bias
@@ -34,10 +36,11 @@ class MixtureDensity(snt.Module):
 
     def obtain_sampled_value_function(self, current_obs, action, policy, value_func):
         sampled_next_obs = self.__call__(current_obs, action).sample()
+        sampled_next_obs = tf.expand_dims(sampled_next_obs, axis=1)
         sampled_action = policy(sampled_next_obs)
         next_value = value_func(sampled_next_obs, sampled_action)
-        return next_value
 
+        return next_value
 
 class ValueFunction(snt.Module):
 
@@ -47,14 +50,13 @@ class ValueFunction(snt.Module):
                                                     snt.Linear(1)])])
 
     def __call__(self, obs, action):
-        if isinstance(obs, tf.Tensor):
-            data = tf.concat([obs, action], axis=1)
-        else:
-            data = tf.concat([tf2_utils.batch_concat(obs), action], axis=1)
+        obs_aug = tf.squeeze(obs, 1)
+        action_aug = tf.one_hot(action, 3)
+        data = tf.concat([obs_aug, action_aug], axis=1)
         return self._net(data)
 
 
-def make_value_func_cartpole() -> Tuple[snt.Module, snt.Module]:
+def bsuite_make_value_func_cartpole() -> Tuple[snt.Module, snt.Module]:
     value_function = ValueFunction()
     mixture_density = MixtureDensity()
     return value_function, mixture_density
