@@ -35,15 +35,9 @@ from pathlib import Path
 ROOT_PATH = str(Path(__file__).resolve().parent.parent)
 sys.path.append(ROOT_PATH)
 
-from src.utils import generate_rl_unplugged_dataset  # noqa: E402
+from src.load_data import load_policy_net, load_data_and_env
 from src.ope.deepiv import DeepIVLearner, make_ope_networks  # noqa: E402
 
-flags.DEFINE_string('dataset_path', '/tmp/dataset', 'Path to dataset.')
-flags.DEFINE_string('task_name', 'cartpole_swingup', 'Task name.')
-flags.DEFINE_enum('task_class', 'control_suite',
-                  ['humanoid', 'rodent', 'control_suite'],
-                  'Task class.')
-flags.DEFINE_string('target_policy_path', '', 'Path to target policy snapshot')
 
 # Agent flags
 flags.DEFINE_float('value_learning_rate', 2e-5, 'learning rate for the treatment_net update')
@@ -65,9 +59,20 @@ def eval_model(test_data, value_func, policy):
     return tf.norm(target - value_func(current_obs, action)) ** 2
 
 def main(_):
+    problem_config = {
+        "task_name": "dm_control_cartpole_swingup",
+        "prob_param": {
+            "noise_level": 0.0,
+            "run_id": 0
+        },
+        "policy_param": {
+            "noise_level": 0.0,
+            "run_id": 1
+        }
+    }
+
     # Load the offline dataset and environment.
-    full_dataset, environment = generate_rl_unplugged_dataset(
-        FLAGS.task_class, FLAGS.task_name, FLAGS.dataset_path)
+    full_dataset, environment = load_data_and_env(problem_config["task_name"], problem_config["prob_param"])
     environment_spec = specs.make_environment_spec(environment)
 
     full_dataset = full_dataset.shuffle(10000)
@@ -86,7 +91,7 @@ def main(_):
     value_func, mixture_density = make_ope_networks("cartpole_swingup", environment_spec)
 
     # Load pretrained target policy network.
-    policy_net = tf.saved_model.load(FLAGS.target_policy_path)
+    policy_net = load_policy_net(problem_config["task_name"], problem_config["policy_param"])
 
     counter = counting.Counter()
     learner_counter = counting.Counter(counter, prefix='learner')
