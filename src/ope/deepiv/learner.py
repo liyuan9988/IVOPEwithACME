@@ -118,16 +118,16 @@ class DeepIVLearner(acme.Learner, tf2_savers.TFSaveable):
     def obtain_sampled_value_function(self, current_obs, action):
         res_list = []
         for i in range(self.n_sampling):
-            sampled_next_obs = self.mixture_density(current_obs, action).sample()
-            sampled_action = self.policy(sampled_next_obs)
-            next_value = self.value_func(sampled_next_obs, sampled_action)
-            res_list.append(tf.expand_dims(next_value, axis=0))
+            sampled_value = self.mixture_density.obtain_sampled_value_function(current_obs, action, self.policy,
+                                                                               self.value_func)
+            res_list.append(sampled_value)
         return tf.reduce_mean(tf.concat(res_list, axis=0), axis=0)
 
     def update_value(self, current_obs, action, reward, discount, next_obs):
         mse = tf.keras.losses.MeanSquaredError()
         with tf.GradientTape() as tape:
-            next_value = self.obtain_sampled_value_function(current_obs, action)
+            next_value = self.mixture_density.obtain_sampled_value_function(current_obs, action, self.policy,
+                                                                            self.value_func)
             current_value = self.value_func(current_obs, action)
             pred = current_value - discount * next_value
             loss = mse(y_pred=pred, y_true=reward)

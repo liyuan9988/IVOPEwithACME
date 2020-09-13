@@ -1,5 +1,7 @@
 from pathlib import Path
 import tensorflow as tf
+import trfl
+import sonnet as snt
 
 from src.utils import load_offline_dm_control_dataset, load_offline_bsuite_dataset
 
@@ -11,7 +13,7 @@ def load_data_and_env(task_name: str, params: dict):
         noise_level = params["noise_level"]
         run_id = params["run_id"]
         path = DATA_PATH.joinpath(f"bsuite/transitions/cartpole_swingup/0_{noise_level}/{run_id}_full")
-        dataset, environment = load_offline_bsuite_dataset(bsuite_id="cartpole_swingup", path=str(path))
+        dataset, environment = load_offline_bsuite_dataset(bsuite_id="cartpole_swingup/0", path=str(path))
     elif task_name == "dm_control_cartpole_swingup":
         noise_level = params["noise_level"]
         run_id = params["run_id"]
@@ -31,6 +33,10 @@ def load_policy_net(task_name: str, params: dict):
         run_id = params["run_id"]
         path = DATA_PATH.joinpath(f"bsuite/snapshots/cartpole_swingup/0_{noise_level}/{run_id}_full")
         policy_net = tf.saved_model.load(str(path))
+        policy_net = snt.Sequential([
+            policy_net,
+            lambda q: trfl.epsilon_greedy(q, epsilon=0.0).sample(),
+        ])
     elif task_name == "dm_control_cartpole_swingup":
         noise_level = params["noise_level"]
         run_id = params["run_id"]

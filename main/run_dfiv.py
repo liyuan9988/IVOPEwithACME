@@ -35,7 +35,7 @@ from pathlib import Path
 ROOT_PATH = str(Path(__file__).resolve().parent.parent)
 sys.path.append(ROOT_PATH)
 
-from src.utils import generate_rl_unplugged_dataset  # noqa: E402
+from src.load_data import load_policy_net, load_data_and_env  # noqa: E402
 from src.ope.dfiv import DFIVLearner, make_ope_networks  # noqa: E402
 
 flags.DEFINE_string('dataset_path', '/tmp/dataset', 'Path to dataset.')
@@ -67,8 +67,18 @@ def eval_model(test_data, value_func, policy):
 
 def main(_):
     # Load the offline dataset and environment.
-    full_dataset, environment = generate_rl_unplugged_dataset(
-        FLAGS.task_class, FLAGS.task_name, FLAGS.dataset_path)
+    problem_config = {
+        "task_name": "dm_control_cartpole_swingup",
+        "prob_param": {
+            "noise_level": 0.0,
+            "run_id": 0
+        },
+        "policy_param": {
+            "noise_level": 0.0,
+            "run_id": 1
+        }
+    }
+    full_dataset, environment = load_data_and_env(problem_config["task_name"], problem_config["prob_param"])
     environment_spec = specs.make_environment_spec(environment)
 
     full_dataset = full_dataset.shuffle(10000)
@@ -81,13 +91,11 @@ def main(_):
 
     dataset = train_data.batch(FLAGS.batch_size)
 
-
-
     # Create the networks to optimize.
-    value_func, instrumental_feature = make_ope_networks("cartpole_swingup", environment_spec)
+    value_func, instrumental_feature = make_ope_networks(problem_config["task_name"], environment_spec)
 
     # Load pretrained target policy network.
-    policy_net = tf.saved_model.load(FLAGS.target_policy_path)
+    policy_net = load_policy_net(problem_config["task_name"], problem_config["policy_param"])
 
     counter = counting.Counter()
     learner_counter = counting.Counter(counter, prefix='learner')
