@@ -32,7 +32,7 @@ class InstrumentalFeatureNet(snt.Module):
                                     tf.nn.relu,
                                     snt.Linear(64)])
         self.num_action = action_spec.num_values
-        self.flat = tf.keras.layers.Flatten()
+        self.flat = snt.Flatten()
 
     def __call__(self, obs, action):
         one_hot = tf.one_hot(action, depth=self.num_action)

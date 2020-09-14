@@ -17,6 +17,7 @@ def fit_linear(target: tf.Tensor,
         weight: torch.Tensor[feature_dim, dim1, dim2, ...]
     """
     nData, nDim = feature.shape
+    nData = tf.cast(tf.shape(feature)[0], dtype=tf.float32)
     A = tf.matmul(feature, feature, transpose_a=True)
     A = A + reg * tf.eye(nDim) * nData
     b = tf.matmul(feature, target, transpose_a=True)
@@ -35,7 +36,8 @@ def linear_reg_loss(target: tf.Tensor,
                     reg: float):
     weight = fit_linear(target, feature, reg)
     pred = linear_reg_pred(feature, weight)
-    return tf.norm((target - pred)) ** 2 + reg * tf.norm(weight) ** 2
+    nData = tf.cast(tf.shape(feature)[0], dtype=tf.float32)
+    return tf.norm((target - pred)) ** 2 + reg * tf.norm(weight) ** 2 * nData
 
 
 @tf.function
