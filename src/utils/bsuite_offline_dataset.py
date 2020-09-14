@@ -106,7 +106,7 @@ def dataset(path: str,
             sarsa: bool = True) -> tf.data.Dataset:
     """Create tf dataset for training."""
 
-    filenames = [f'{path}-{i:05d}-of-{num_shards:05d}.gz' for i in range(num_shards)]
+    filenames = [f'{path}-{i:05d}-of-{num_shards:05d}' for i in range(num_shards)]
     file_ds = tf.data.Dataset.from_tensor_slices(filenames)
     file_ds = file_ds.repeat().shuffle(num_shards)
 
