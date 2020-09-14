@@ -114,15 +114,9 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
 
         return fetches
 
-    def obtain_next_action(self, next_obs):
-        if isinstance(next_obs, tf.Tensor):
-            return self.policy(next_obs)
-        else:
-            return self.policy(tf2_utils.batch_concat(next_obs))
-
     def update_instrumental(self, current_obs, action, reward, discount, next_obs):
         discount = tf.expand_dims(discount, axis=1)
-        next_action = self.obtain_next_action(next_obs)
+        next_action = self.policy(next_obs)
         target = discount * self.value_feature(next_obs, next_action) \
                     - self.value_feature(current_obs, action)
 
@@ -138,7 +132,7 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
     def update_value(self, stage1_input, stage2_input):
         current_obs_1st, action_1st, reward_1st, discount_1st, next_obs_1st, _ = stage1_input
         current_obs_2nd, action_2nd, reward_2nd, discount_2nd, next_obs_2nd, _ = stage2_input
-        next_action_1st = self.obtain_next_action(next_obs_1st)
+        next_action_1st = self.policy(next_obs_1st)
 
         instrumental_feature_1st = self.instrumental_feature(obs=current_obs_1st, action=action_1st)
         instrumental_feature_2nd = self.instrumental_feature(obs=current_obs_2nd, action=action_2nd)
@@ -158,7 +152,7 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
     def update_final_weight(self, stage1_input, stage2_input):
         current_obs_1st, action_1st, reward_1st, discount_1st, next_obs_1st, _ = stage1_input
         current_obs_2nd, action_2nd, reward_2nd, discount_2nd, next_obs_2nd, _ = stage2_input
-        next_action_1st = self.obtain_next_action(next_obs_1st)
+        next_action_1st = self.policy(next_obs_1st)
 
         instrumental_feature_1st = self.instrumental_feature(obs=current_obs_1st, action=action_1st)
         instrumental_feature_2nd = self.instrumental_feature(obs=current_obs_2nd, action=action_2nd)
