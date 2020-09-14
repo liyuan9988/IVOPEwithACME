@@ -46,6 +46,7 @@ def load_rl_unplugged_dataset(
 
 def load_offline_dm_control_dataset(
         task_name: str,
+        noise_std: float,
         root_path: str,
         data_path: str,
         num_shards: int = 1,
@@ -54,6 +55,7 @@ def load_offline_dm_control_dataset(
     """Reuse dm_control_suite to load offline datasets from a different path."""
     # Data file path format: {root_path}/{data_path}-?????-of-{num_shards:05d}
     task = dm_control_suite.ControlSuite(task_name=task_name)
+    environment = ClippedGaussianNoisyActionWrapper(task.environment, noise_std)
     dataset = dm_control_suite.dataset(root_path=root_path,
                                        data_path=data_path,
                                        shapes=task.shapes,
@@ -62,21 +64,24 @@ def load_offline_dm_control_dataset(
                                        uint8_features=task.uint8_features,
                                        num_shards=num_shards,
                                        shuffle_buffer_size=10)
-    return dataset, task.environment
+    return dataset, environment
 
 
 def load_offline_bsuite_dataset(
         bsuite_id: str,
+        random_prob: float,
         path: str,
         num_shards: int = 1,
         num_threads: int = 1,
         batch_size: int = 2,
-        single_precision_wrapper: bool = True) -> Tuple[tf.data.Dataset, dm_env.Environment]:
+        single_precision_wrapper: bool = True) -> Tuple[tf.data.Dataset,
+                                                        dm_env.Environment]:
     """Load bsuite offline dataset."""
     # Data file path format: {path}-?????-of-{num_shards:05d}
     environment = bsuite.load_from_id(bsuite_id)
     if single_precision_wrapper:
         environment = single_precision.SinglePrecisionWrapper(environment)
+    environment = RandomActionWrapper(environment, random_prob)
     params = bsuite_offline_dataset.dataset_params(environment)
     dataset = bsuite_offline_dataset.dataset(path=path,
                                              num_threads=num_threads,
