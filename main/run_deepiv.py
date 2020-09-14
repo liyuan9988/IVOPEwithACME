@@ -35,22 +35,15 @@ from pathlib import Path
 ROOT_PATH = str(Path(__file__).resolve().parent.parent)
 sys.path.append(ROOT_PATH)
 
-from src.load_data import load_policy_net, load_data_and_env  # noqa: E402
-from src.ope.dfiv import DFIVLearner, make_ope_networks  # noqa: E402
+from src.load_data import load_policy_net, load_data_and_env
+from src.ope.deepiv import DeepIVLearner, make_ope_networks  # noqa: E402
 
-flags.DEFINE_string('dataset_path', '/tmp/dataset', 'Path to dataset.')
-flags.DEFINE_string('task_name', 'cartpole_swingup', 'Task name.')
-flags.DEFINE_enum('task_class', 'control_suite',
-                  ['humanoid', 'rodent', 'control_suite'],
-                  'Task class.')
-flags.DEFINE_string('target_policy_path', '', 'Path to target policy snapshot')
 
 # Agent flags
 flags.DEFINE_float('value_learning_rate', 2e-5, 'learning rate for the treatment_net update')
-flags.DEFINE_float('instrumental_learning_rate', 2e-5, 'learning rate for the instrumental_net update')
-flags.DEFINE_float('stage1_reg', 1e-3, 'ridge regularizer for stage 1 regression')
-flags.DEFINE_float('stage2_reg', 1e-3, 'ridge regularizer for stage 2 regression')
-flags.DEFINE_integer('instrumental_iter', 20, 'number of iteration for instrumental function')
+flags.DEFINE_float('density_learning_rate', 2e-5, 'learning rate for the mixture density net update')
+flags.DEFINE_integer('density_iter', 20, 'number of iteration for instrumental function')
+flags.DEFINE_integer('n_sampling', 10, 'number of samples generated in stage 2')
 flags.DEFINE_integer('value_iter', 10, 'number of iteration for value function')
 
 flags.DEFINE_integer('batch_size', 2000, 'Batch size.')
@@ -61,12 +54,11 @@ FLAGS = flags.FLAGS
 
 def eval_model(test_data, value_func, policy):
     current_obs, action, reward, discount, next_obs, _ = test_data.data
-    next_action = policy(tf2_utils.batch_concat(next_obs))
+    next_action = policy(next_obs)
     target = tf.expand_dims(reward, axis=1) + tf.expand_dims(discount, axis=1) * value_func(next_obs, next_action)
     return tf.norm(target - value_func(current_obs, action)) ** 2
 
 def main(_):
-    # Load the offline dataset and environment.
     problem_config = {
         "task_name": "dm_control_cartpole_swingup",
         "prob_param": {
@@ -78,6 +70,8 @@ def main(_):
             "run_id": 1
         }
     }
+
+    # Load the offline dataset and environment.
     full_dataset, environment = load_data_and_env(problem_config["task_name"], problem_config["prob_param"])
     environment_spec = specs.make_environment_spec(environment)
 
@@ -91,8 +85,10 @@ def main(_):
 
     dataset = train_data.batch(FLAGS.batch_size)
 
+
+
     # Create the networks to optimize.
-    value_func, instrumental_feature = make_ope_networks(problem_config["task_name"], environment_spec)
+    value_func, mixture_density = make_ope_networks(problem_config["task_name"], environment_spec)
 
     # Load pretrained target policy network.
     policy_net = load_policy_net(problem_config["task_name"], problem_config["policy_param"])
@@ -101,15 +97,14 @@ def main(_):
     learner_counter = counting.Counter(counter, prefix='learner')
 
     # The learner updates the parameters (and initializes them).
-    learner = DFIVLearner(
+    learner = DeepIVLearner(
         value_func=value_func,
-        instrumental_feature=instrumental_feature,
+        mixture_density=mixture_density,
         policy_net=policy_net,
         value_learning_rate=FLAGS.value_learning_rate,
-        instrumental_learning_rate=FLAGS.instrumental_learning_rate,
-        stage1_reg=FLAGS.stage1_reg,
-        stage2_reg=FLAGS.stage2_reg,
-        instrumental_iter=FLAGS.instrumental_iter,
+        density_learning_rate=FLAGS.density_learning_rate,
+        n_sampling=FLAGS.n_sampling,
+        density_iter=FLAGS.density_iter,
         value_iter=FLAGS.value_iter,
         dataset=dataset,
         counter=learner_counter)
