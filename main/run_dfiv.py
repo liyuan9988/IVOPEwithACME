@@ -1,29 +1,16 @@
 # python3
-# Copyright 2018 DeepMind Technologies Limited. All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
 
 from absl import app
 from absl import flags
 import acme
 
+from acme import specs
 from acme.agents.tf import actors
 from acme.agents.tf.bc import learning
 from acme.tf import networks as acme_nets
 from acme.tf import utils as tf2_utils
 from acme.utils import counting
 from acme.utils import loggers
-from acme import specs
 
 import sonnet as snt
 import tensorflow as tf
@@ -76,7 +63,8 @@ def main(_):
         "policy_param": {
             "noise_level": 0.0,
             "run_id": 1
-        }
+      },
+      'discount': 0.99,
     }
     full_dataset, environment = load_data_and_env(problem_config["task_name"], problem_config["prob_param"])
     environment_spec = specs.make_environment_spec(environment)
@@ -95,7 +83,9 @@ def main(_):
     value_func, instrumental_feature = make_ope_networks(problem_config["task_name"], environment_spec)
 
     # Load pretrained target policy network.
-    policy_net = load_policy_net(problem_config["task_name"], problem_config["policy_param"])
+    policy_net = load_policy_net(task_name=problem_config["task_name"],
+                                 params=problem_config["policy_param"],
+                                 environment_spec=environment_spec)
 
     counter = counting.Counter()
     learner_counter = counting.Counter(counter, prefix='learner')

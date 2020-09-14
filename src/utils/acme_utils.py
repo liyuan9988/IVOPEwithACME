@@ -9,15 +9,19 @@ from acme.wrappers import base as wrapper_base
 from acme.wrappers import single_precision
 import bsuite
 import dm_env
-
 import numpy as np
 import reverb
-
+import sonnet as snt
+if snt.__version__.split('.')[0] == '1':
+  import sonnet.v2 as snt
+import tensorflow_probability as tfp
 import tensorflow as tf
 import tree
 
 from src.utils import bsuite_offline_dataset
 from src.utils import dm_control_suite
+
+tfd = tfp.distributions
 
 
 def load_rl_unplugged_dataset(
@@ -222,3 +226,18 @@ class RandomActionWrapper(wrapper_base.EnvironmentWrapper):
                 lambda spec: np.random.randint(spec.num_values, dtype=spec.dtype),
                 self._action_spec)
         return self._environment.step(action)
+
+
+class GaussianNoise(snt.Module):
+  """Sonnet module for adding Gaussian noise to each output."""
+
+  def __init__(self, stddev: float, name: str = 'gaussian_noise'):
+    super().__init__(name=name)
+    self._noise = tfd.Normal(loc=0., scale=stddev)
+
+  def __call__(self, inputs: types.NestedTensor) -> types.NestedTensor:
+    def add_noise(tensor: tf.Tensor):
+      output = tensor + self._noise.sample(tensor.shape)
+      return output
+
+    return tree.map_structure(add_noise, inputs)
