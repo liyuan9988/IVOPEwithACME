@@ -1,4 +1,5 @@
 # python3
+# pylint: disable=bad-indentation,line-too-long
 
 from absl import app
 from absl import flags
@@ -12,6 +13,7 @@ from acme.tf import utils as tf2_utils
 from acme.utils import counting
 from acme.utils import loggers
 
+import numpy as np
 import sonnet as snt
 import tensorflow as tf
 import trfl
@@ -24,6 +26,7 @@ sys.path.append(ROOT_PATH)
 
 from src.load_data import load_policy_net, load_data_and_env  # noqa: E402
 from src.ope.dfiv import DFIVLearner, make_ope_networks  # noqa: E402
+from src.utils import ope_evaluation
 
 flags.DEFINE_string('dataset_path', '/tmp/dataset', 'Path to dataset.')
 flags.DEFINE_string('task_name', 'cartpole_swingup', 'Task name.')
@@ -42,31 +45,26 @@ flags.DEFINE_integer('value_iter', 10, 'number of iteration for value function')
 
 flags.DEFINE_integer('batch_size', 2000, 'Batch size.')
 flags.DEFINE_integer('evaluate_every', 10, 'Evaluation period.')
-flags.DEFINE_integer('evaluation_episodes', 10, 'Evaluation episodes.')
+flags.DEFINE_integer('evaluate_init_samples', 100, 'Number of initial samples for evaluation.')
 
 FLAGS = flags.FLAGS
 
-def eval_model(test_data, value_func, policy):
-    current_obs, action, reward, discount, next_obs, _ = test_data.data
-    next_action = policy(tf2_utils.batch_concat(next_obs))
-    target = tf.expand_dims(reward, axis=1) + tf.expand_dims(discount, axis=1) * value_func(next_obs, next_action)
-    return tf.norm(target - value_func(current_obs, action)) ** 2
 
 def main(_):
     # Load the offline dataset and environment.
     problem_config = {
-        "task_name": "dm_control_cartpole_swingup",
-        "prob_param": {
-            "noise_level": 0.0,
-            "run_id": 0
+        'task_name': 'dm_control_cartpole_swingup',
+        'prob_param': {
+            'noise_level': 0.0,
+            'run_id': 0
         },
-        "policy_param": {
-            "noise_level": 0.0,
-            "run_id": 1
-      },
-      'discount': 0.99,
+        'policy_param': {
+            'noise_level': 0.0,
+            'run_id': 1
+        },
+        'discount': 0.99,
     }
-    full_dataset, environment = load_data_and_env(problem_config["task_name"], problem_config["prob_param"])
+    full_dataset, environment = load_data_and_env(problem_config['task_name'], problem_config['prob_param'])
     environment_spec = specs.make_environment_spec(environment)
 
     full_dataset = full_dataset.shuffle(10000)
@@ -80,11 +78,12 @@ def main(_):
     dataset = train_data.batch(FLAGS.batch_size)
 
     # Create the networks to optimize.
-    value_func, instrumental_feature = make_ope_networks(problem_config["task_name"], environment_spec)
+    value_func, instrumental_feature = make_ope_networks(
+        problem_config['task_name'], environment_spec)
 
     # Load pretrained target policy network.
-    policy_net = load_policy_net(task_name=problem_config["task_name"],
-                                 params=problem_config["policy_param"],
+    policy_net = load_policy_net(task_name=problem_config['task_name'],
+                                 params=problem_config['policy_param'],
                                  environment_spec=environment_spec)
 
     counter = counting.Counter()
@@ -104,10 +103,18 @@ def main(_):
         dataset=dataset,
         counter=learner_counter)
 
+    eval_logger = loggers.TerminalLogger('eval')
+
     while True:
         for _ in range(FLAGS.evaluate_every):
             learner.step()
-        print(eval_model(test_data, value_func, policy_net))
+        ope_evaluation(
+            test_data=test_data,
+            value_func=value_func,
+            policy_net=policy_net,
+            environment=environment,
+            logger=eval_logger,
+            num_init_samples=FLAGS.evaluate_init_samples)
 
 
 if __name__ == '__main__':
