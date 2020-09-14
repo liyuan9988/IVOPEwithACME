@@ -13,21 +13,25 @@ DATA_PATH = Path(__file__).resolve().parent.parent.joinpath("offline_dataset").j
 
 
 def load_data_and_env(task_name: str, params: dict):
-    if task_name == "bsuite_cartpole_swingup":
+    if task_name.startswith("bsuite"):
+        # BSuite tasks.
+        bsuite_id = task_name[len("bsuite_"):] + "/0"
         noise_level = params["noise_level"]
         run_id = params["run_id"]
-        path = DATA_PATH.joinpath(f"bsuite/transitions/cartpole_swingup/0_{noise_level}/{run_id}_full")
+        path = DATA_PATH.joinpath(f"bsuite/transitions/{bsuite_id}_{noise_level}/{run_id}_full")
         dataset, environment = load_offline_bsuite_dataset(
-            bsuite_id="cartpole_swingup/0",
+            bsuite_id=bsuite_id,
             random_prob=noise_level,
             path=str(path))
-    elif task_name == "dm_control_cartpole_swingup":
+    elif task_name.startswith("dm_control"):
+        # DM Control tasks.
+        dm_control_task_name = task_name[len("dm_control_"):]
         noise_level = params["noise_level"]
         run_id = params["run_id"]
-        root_path = DATA_PATH.joinpath(f"dm_control_suite/transitions/cartpole_swingup_{noise_level}/")
+        root_path = DATA_PATH.joinpath(f"dm_control_suite/transitions/{dm_control_task_name}_{noise_level}/")
         data_path = f"{run_id}_full"
         dataset, environment = load_offline_dm_control_dataset(
-            task_name="cartpole_swingup",
+            task_name=dm_control_task_name,
             noise_std=noise_level,
             root_path=str(root_path),
             data_path=str(data_path))
@@ -41,19 +45,23 @@ def load_policy_net(
     params: dict,
     environment_spec: specs.EnvironmentSpec = None,
     ):
-    if task_name == "bsuite_cartpole_swingup":
+    if task_name.startswith("bsuite"):
+        # BSuite tasks.
+        bsuite_id = task_name[len("bsuite_"):] + "/0"
         noise_level = params["noise_level"]
         run_id = params["run_id"]
-        path = DATA_PATH.joinpath(f"bsuite/snapshots/cartpole_swingup/0_{noise_level}/{run_id}_full")
+        path = DATA_PATH.joinpath(f"bsuite/snapshots/{bsuite_id}_{noise_level}/{run_id}_full")
         policy_net = tf.saved_model.load(str(path))
         policy_net = snt.Sequential([
             policy_net,
             lambda q: trfl.epsilon_greedy(q, epsilon=0.0).sample(),
         ])
-    elif task_name == "dm_control_cartpole_swingup":
+    elif task_name.startswith("dm_control"):
+        # DM Control tasks.
+        dm_control_task = task_name[len("dm_control_"):]
         noise_level = params["noise_level"]
         run_id = params["run_id"]
-        path = DATA_PATH.joinpath(f"dm_control_suite/snapshots/cartpole_swingup_{noise_level}/{run_id}_full")
+        path = DATA_PATH.joinpath(f"dm_control_suite/snapshots/{dm_control_task}_{noise_level}/{run_id}_full")
         policy_net = tf.saved_model.load(str(path))
 
         # act_spec = environment_spec.actions

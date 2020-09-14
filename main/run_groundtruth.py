@@ -1,4 +1,15 @@
 # python3
+"""Compute the ground-truth policy value of a pretrained policy net.
+
+Results (Mean estimate +- 1-sigma) with discount = 0.9 with discount = 0.99.
+
+DM Control Suite:
+cartpole_swingup: 32.383 +- 0.009
+
+BSuite:
+catch/0: 0.923 +- 0.000
+cartpole/0: 99.996 +- 0.000
+"""
 
 import pathlib
 import sys
@@ -23,8 +34,23 @@ FLAGS = flags.FLAGS
 
 
 def main(_):
+  # problem_config = {
+  #     'task_name': 'dm_control_cartpole_swingup',
+  #     'prob_param': {
+  #         'noise_level': 0.0,
+  #         'run_id': 0
+  #     },
+  #     'policy_param': {
+  #         'noise_level': 0.0,
+  #         'run_id': 1
+  #     },
+  #     'discount': 0.99,
+  # }
+
   problem_config = {
-      'task_name': 'dm_control_cartpole_swingup',
+      # 'task_name': 'bsuite_cartpole_swingup',
+      # 'task_name': 'bsuite_catch',
+      'task_name': 'bsuite_cartpole',
       'prob_param': {
           'noise_level': 0.0,
           'run_id': 0
