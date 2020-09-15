@@ -53,7 +53,7 @@ FLAGS = flags.FLAGS
 def main(_):
     # Load the offline dataset and environment.
     problem_config = {
-        'task_name': 'dm_control_cartpole_swingup',
+        'task_name': 'bsuite_catch',
         'prob_param': {
             'noise_level': 0.0,
             'run_id': 0
