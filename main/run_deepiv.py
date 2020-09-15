@@ -17,11 +17,11 @@ import sonnet as snt
 import tensorflow as tf
 import trfl
 
+import pathlib
 import sys
-from pathlib import Path
 
-ROOT_PATH = str(Path(__file__).resolve().parent.parent)
-sys.path.append(ROOT_PATH)
+ROOT_PATH = pathlib.Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT_PATH))
 
 from src.load_data import load_policy_net, load_data_and_env
 from src.ope.deepiv import DeepIVLearner, make_ope_networks  # noqa: E402
@@ -29,6 +29,10 @@ from src.utils import ope_evaluation
 
 
 # Agent flags
+flags.DEFINE_string(
+    'dataset_path',
+    str(ROOT_PATH.joinpath('offline_dataset').joinpath('stochastic')),
+    'Path to offline dataset directory.')
 flags.DEFINE_float('value_learning_rate', 2e-5, 'learning rate for the treatment_net update')
 flags.DEFINE_float('density_learning_rate', 2e-5, 'learning rate for the mixture density net update')
 flags.DEFINE_integer('density_iter', 20, 'number of iteration for instrumental function')
@@ -57,7 +61,9 @@ def main(_):
     }
 
     # Load the offline dataset and environment.
-    full_dataset, environment = load_data_and_env(problem_config['task_name'], problem_config['prob_param'])
+    full_dataset, environment = load_data_and_env(
+        problem_config['task_name'], problem_config['prob_param'],
+        dataset_path=FLAGS.dataset_path)
     environment_spec = specs.make_environment_spec(environment)
 
     full_dataset = full_dataset.shuffle(10000)
@@ -76,7 +82,8 @@ def main(_):
     # Load pretrained target policy network.
     policy_net = load_policy_net(task_name=problem_config['task_name'],
                                  params=problem_config['policy_param'],
-                                 environment_spec=environment_spec)
+                                 environment_spec=environment_spec,
+                                 dataset_path=FLAGS.dataset_path)
 
     counter = counting.Counter()
     learner_counter = counting.Counter(counter, prefix='learner')
