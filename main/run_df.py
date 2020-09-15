@@ -25,7 +25,7 @@ ROOT_PATH = str(Path(__file__).resolve().parent.parent)
 sys.path.append(ROOT_PATH)
 
 from src.load_data import load_policy_net, load_data_and_env  # noqa: E402
-from src.ope.df import DFLearner
+from src.ope.df.learner import DFLearner
 from src.ope.dfiv import make_ope_networks  # noqa: E402
 from src.utils import ope_evaluation
 
@@ -44,7 +44,7 @@ flags.DEFINE_float('stage2_reg', 1e-3, 'ridge regularizer for stage 2 regression
 flags.DEFINE_integer('instrumental_iter', 20, 'number of iteration for instrumental function')
 flags.DEFINE_integer('value_iter', 10, 'number of iteration for value function')
 
-flags.DEFINE_integer('batch_size', 2000, 'Batch size.')
+flags.DEFINE_integer('batch_size', 10000, 'Batch size.')
 flags.DEFINE_integer('evaluate_every', 1, 'Evaluation period.')
 flags.DEFINE_integer('evaluate_init_samples', 100, 'Number of initial samples for evaluation.')
 

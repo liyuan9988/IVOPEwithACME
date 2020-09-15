@@ -83,6 +83,8 @@ class DFLearner(acme.Learner, tf2_savers.TFSaveable):
         ]
         self._num_steps = tf.Variable(0, dtype=tf.int32)
 
+        self.data = None
+
         # Create a snapshotter object.
         if checkpoint:
             self._snapshotter = tf2_savers.Snapshotter(
@@ -97,14 +99,13 @@ class DFLearner(acme.Learner, tf2_savers.TFSaveable):
         stage2_loss = None
         # Pull out the data needed for updates/priorities.
 
-        for i in range(self.value_iter):
-            stage1_input = next(self._iterator).data
-            stage2_input = next(self._iterator).data
-            stage2_loss = self.update_value(stage1_input, stage2_input)
+        if self.data is None:
+            self.data = next(self._iterator).data
 
-        stage1_input = next(self._iterator).data
-        stage2_input = next(self._iterator).data
-        self.update_final_weight(stage1_input, stage2_input)
+        for i in range(self.value_iter):
+            self.update_value()
+
+        stage2_loss = self.update_final_weight()
         self._num_steps.assign_add(1)
 
         # Compute the global norm of the gradients for logging.
@@ -112,21 +113,9 @@ class DFLearner(acme.Learner, tf2_savers.TFSaveable):
 
         return fetches
 
-    def update_instrumental(self, current_obs, action, reward, discount, next_obs):
-        next_action = self.policy(next_obs)
-        target = self.value_feature(next_obs, next_action)
 
-        with tf.GradientTape() as tape:
-            feature = self.instrumental_feature(obs=current_obs, action=action)
-            loss = linear_reg_loss(target, feature, self.stage1_reg)
-
-        gradient = tape.gradient(loss, self.instrumental_feature.trainable_variables)
-        self._instrumental_func_optimizer.apply(gradient, self.instrumental_feature.trainable_variables)
-
-        return loss
-
-    def update_value(self, stage1_input, stage2_input):
-        current_obs_2nd, action_2nd, reward_2nd, discount_2nd, next_obs_2nd, _ = stage2_input
+    def update_value(self):
+        current_obs_2nd, action_2nd, reward_2nd, discount_2nd, next_obs_2nd, _ = self.data
         next_action_2nd = self.policy(next_obs_2nd)
 
         discount_2nd = tf.expand_dims(discount_2nd, axis=1) * self.discount
@@ -141,8 +130,8 @@ class DFLearner(acme.Learner, tf2_savers.TFSaveable):
         self._value_func_optimizer.apply(gradient, self.value_feature.trainable_variables)
         return loss
 
-    def update_final_weight(self, stage1_input, stage2_input):
-        current_obs_2nd, action_2nd, reward_2nd, discount_2nd, next_obs_2nd, _ = stage2_input
+    def update_final_weight(self):
+        current_obs_2nd, action_2nd, reward_2nd, discount_2nd, next_obs_2nd, _ = self.data
         next_action_2nd = self.policy(next_obs_2nd)
 
         discount_2nd = tf.expand_dims(discount_2nd, axis=1) * self.discount
@@ -152,6 +141,7 @@ class DFLearner(acme.Learner, tf2_savers.TFSaveable):
         predicted_feature = current_feature - discount_2nd * next_feature
         aug_predicted_feature = tf.concat([predicted_feature, 1.0 - discount_2nd], axis=1)
         self.value_func._weight = fit_linear(tf.expand_dims(reward_2nd, -1), aug_predicted_feature, self.stage2_reg)
+        return linear_reg_loss(tf.expand_dims(reward_2nd, -1), aug_predicted_feature, self.stage2_reg)
 
     def step(self):
         # Do a batch of SGD.
