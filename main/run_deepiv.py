@@ -57,18 +57,11 @@ def main(_):
     }
 
     # Load the offline dataset and environment.
-    full_dataset, environment = load_data_and_env(problem_config['task_name'], problem_config['prob_param'])
+    dataset, environment = load_data_and_env(problem_config['task_name'], problem_config['prob_param'])
     environment_spec = specs.make_environment_spec(environment)
 
-    full_dataset = full_dataset.shuffle(10000)
-    test_data = full_dataset.take(1000)
-    train_data = full_dataset.skip(1000)
-    train_data = train_data.shuffle(20000)
 
-    test_data = test_data.batch(1000)
-    test_data = next(iter(test_data))
-
-    dataset = train_data.batch(FLAGS.batch_size)
+    dataset = dataset.batch(FLAGS.batch_size)
 
     # Create the networks to optimize.
     value_func, mixture_density = make_ope_networks(problem_config['task_name'], environment_spec)
@@ -100,13 +93,13 @@ def main(_):
     while True:
         for _ in range(FLAGS.evaluate_every):
             learner.step()
-        ope_evaluation(
-            test_data=test_data,
-            value_func=value_func,
-            policy_net=policy_net,
-            environment=environment,
-            logger=eval_logger,
-            num_init_samples=FLAGS.evaluate_init_samples)
+        ope_evaluation(value_func=value_func,
+                       policy_net=policy_net,
+                       environment=environment,
+                       logger=eval_logger,
+                       num_init_samples=FLAGS.evaluate_init_samples,
+                       mse_samples=1000,
+                       discount=problem_config["discount"])
 
 
 if __name__ == '__main__':

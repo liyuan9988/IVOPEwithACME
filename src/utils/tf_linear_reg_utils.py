@@ -58,14 +58,14 @@ def outer_prod(mat1: tf.Tensor, mat2: tf.Tensor):
     assert mat1_shape[0] == mat2_shape[0]
     mat1_shape[0] = -1
     mat2_shape[0] = -1
-    aug_mat1_shape = mat1_shape + [1,] * (len(mat2_shape) - 1)
+    aug_mat1_shape = mat1_shape + [1, ] * (len(mat2_shape) - 1)
     aug_mat1 = tf.reshape(mat1, aug_mat1_shape)
-    aug_mat2_shape = [-1] + [1,] * (len(mat1_shape) - 1) + mat2_shape[1:]
+    aug_mat2_shape = [-1] + [1, ] * (len(mat1_shape) - 1) + mat2_shape[1:]
     aug_mat2 = tf.reshape(mat2, aug_mat2_shape)
     return aug_mat1 * aug_mat2
 
 
-def add_const_col(mat: tf.Tensor):
+def add_const_col(mat: tf.Tensor, const: float = 1.0):
     """
 
     Parameters
@@ -78,5 +78,5 @@ def add_const_col(mat: tf.Tensor):
         add one column only contains 1.
 
     """
-    n_data = mat.shape[0]
-    return tf.concat([mat, tf.ones((n_data, 1))], axis=1)
+    n_data = tf.shape(mat)[0]
+    return tf.concat([mat, const * tf.ones((n_data, 1))], axis=1)
