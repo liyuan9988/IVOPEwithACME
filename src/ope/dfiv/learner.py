@@ -29,6 +29,7 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
                  value_func: snt.Module,
                  instrumental_feature: snt.Module,
                  policy_net: snt.Module,
+                 discount: float,
                  value_learning_rate: float,
                  instrumental_learning_rate: float,
                  stage1_reg: float,
@@ -45,6 +46,7 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
           value_feature: value function network
           instrumental_feature: dual function network.
           policy_net: policy network.
+          discount: global discount.
           value_learning_rate: learning rate for the treatment_net update.
           instrumental_learning_rate: learning rate for the instrumental_net update.
           stage1_reg: ridge regularizer for stage 1 regression
@@ -64,6 +66,7 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         self.stage2_reg = stage2_reg
         self.instrumental_iter = instrumental_iter
         self.value_iter = value_iter
+        self.discount = discount
 
         # Get an iterator over the dataset.
         self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
@@ -115,7 +118,7 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         return fetches
 
     def update_instrumental(self, current_obs, action, reward, discount, next_obs):
-        discount = tf.expand_dims(discount, axis=1)
+        discount = tf.expand_dims(discount, axis=1) * self.discount
         next_action = self.policy(next_obs)
         target = discount * self.value_feature(next_obs, next_action) \
                     - self.value_feature(current_obs, action)
@@ -137,7 +140,7 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         instrumental_feature_1st = self.instrumental_feature(obs=current_obs_1st, action=action_1st)
         instrumental_feature_2nd = self.instrumental_feature(obs=current_obs_2nd, action=action_2nd)
 
-        discount_1st = tf.expand_dims(discount_1st, axis=1)
+        discount_1st = tf.expand_dims(discount_1st, axis=1) * self.discount
         with tf.GradientTape() as tape:
             target_1st = discount_1st * self.value_feature(obs=next_obs_1st, action=next_action_1st)\
                          - self.value_feature(obs=current_obs_1st, action=action_1st)
@@ -157,7 +160,7 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         instrumental_feature_1st = self.instrumental_feature(obs=current_obs_1st, action=action_1st)
         instrumental_feature_2nd = self.instrumental_feature(obs=current_obs_2nd, action=action_2nd)
 
-        discount_1st = tf.expand_dims(discount_1st, axis=1)
+        discount_1st = tf.expand_dims(discount_1st, axis=1) * self.discount
         target_1st = discount_1st * self.value_feature(obs=next_obs_1st, action=next_action_1st) \
                          - self.value_feature(obs=current_obs_1st, action=action_1st)
         stage1_weight = fit_linear(-target_1st, instrumental_feature_1st, self.stage1_reg)
