@@ -86,6 +86,7 @@ def main(_):
         value_func=value_func,
         mixture_density=mixture_density,
         policy_net=policy_net,
+        discount=problem_config["discount"],
         value_learning_rate=FLAGS.value_learning_rate,
         density_learning_rate=FLAGS.density_learning_rate,
         n_sampling=FLAGS.n_sampling,

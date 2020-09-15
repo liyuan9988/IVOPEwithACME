@@ -94,6 +94,7 @@ def main(_):
         value_func=value_func,
         instrumental_feature=instrumental_feature,
         policy_net=policy_net,
+        discount=problem_config["discount"],
         value_learning_rate=FLAGS.value_learning_rate,
         instrumental_learning_rate=FLAGS.instrumental_learning_rate,
         stage1_reg=FLAGS.stage1_reg,

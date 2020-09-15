@@ -28,6 +28,7 @@ class DeepIVLearner(acme.Learner, tf2_savers.TFSaveable):
                  value_func: snt.Module,
                  mixture_density: snt.Module,
                  policy_net: snt.Module,
+                 discount: float,
                  value_learning_rate: float,
                  density_learning_rate: float,
                  n_sampling: int,
@@ -43,6 +44,7 @@ class DeepIVLearner(acme.Learner, tf2_savers.TFSaveable):
           value_feature: value function network
           mixture_density: mixture density function network.
           policy_net: policy network.
+          discount: global discount.
           value_learning_rate: learning rate for the treatment_net update.
           density_learning_rate: learning rate for the mixture_density update.
           n_sampling: number of samples generated in stage 2,
@@ -60,6 +62,7 @@ class DeepIVLearner(acme.Learner, tf2_savers.TFSaveable):
         self.density_iter = density_iter
         self.value_iter = value_iter
         self.n_sampling = n_sampling
+        self.discount = discount
 
         # Get an iterator over the dataset.
         self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
@@ -129,7 +132,7 @@ class DeepIVLearner(acme.Learner, tf2_savers.TFSaveable):
             next_value = self.mixture_density.obtain_sampled_value_function(current_obs, action, self.policy,
                                                                             self.value_func)
             current_value = self.value_func(current_obs, action)
-            pred = current_value - discount * next_value
+            pred = current_value - discount * next_value * self.discount
             loss = mse(y_pred=pred, y_true=reward)
 
         gradient = tape.gradient(loss, self.value_func.trainable_variables)
