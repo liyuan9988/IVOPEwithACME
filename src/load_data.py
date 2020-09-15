@@ -9,16 +9,15 @@ import sonnet as snt
 from src.utils import load_offline_dm_control_dataset, load_offline_bsuite_dataset
 from src.utils import acme_utils
 
-DATA_PATH = Path(__file__).resolve().parent.parent.joinpath("offline_dataset").joinpath("stochastic")
 
-
-def load_data_and_env(task_name: str, params: dict):
+def load_data_and_env(task_name: str, params: dict, dataset_path: str = None):
+    dataset_path = Path(dataset_path)
     if task_name.startswith("bsuite"):
         # BSuite tasks.
         bsuite_id = task_name[len("bsuite_"):] + "/0"
         noise_level = params["noise_level"]
         run_id = params["run_id"]
-        path = DATA_PATH.joinpath(f"bsuite/transitions/{bsuite_id}_{noise_level}/{run_id}_full")
+        path = dataset_path.joinpath(f"bsuite/transitions/{bsuite_id}_{noise_level}/{run_id}_full")
         dataset, environment = load_offline_bsuite_dataset(
             bsuite_id=bsuite_id,
             random_prob=noise_level,
@@ -28,7 +27,7 @@ def load_data_and_env(task_name: str, params: dict):
         dm_control_task_name = task_name[len("dm_control_"):]
         noise_level = params["noise_level"]
         run_id = params["run_id"]
-        root_path = DATA_PATH.joinpath(f"dm_control_suite/transitions/{dm_control_task_name}_{noise_level}/")
+        root_path = dataset_path.joinpath(f"dm_control_suite/transitions/{dm_control_task_name}_{noise_level}/")
         data_path = f"{run_id}_full"
         dataset, environment = load_offline_dm_control_dataset(
             task_name=dm_control_task_name,
@@ -44,13 +43,15 @@ def load_policy_net(
     task_name: str,
     params: dict,
     environment_spec: specs.EnvironmentSpec = None,
+    dataset_path: str = None,
     ):
+    dataset_path = Path(dataset_path) if dataset_path else DATA_PATH
     if task_name.startswith("bsuite"):
         # BSuite tasks.
         bsuite_id = task_name[len("bsuite_"):] + "/0"
         noise_level = params["noise_level"]
         run_id = params["run_id"]
-        path = DATA_PATH.joinpath(f"bsuite/snapshots/{bsuite_id}_{noise_level}/{run_id}_full")
+        path = dataset_path.joinpath(f"bsuite/snapshots/{bsuite_id}_{noise_level}/{run_id}_full")
         policy_net = tf.saved_model.load(str(path))
         policy_net = snt.Sequential([
             policy_net,
@@ -61,7 +62,7 @@ def load_policy_net(
         dm_control_task = task_name[len("dm_control_"):]
         noise_level = params["noise_level"]
         run_id = params["run_id"]
-        path = DATA_PATH.joinpath(f"dm_control_suite/snapshots/{dm_control_task}_{noise_level}/{run_id}_full")
+        path = dataset_path.joinpath(f"dm_control_suite/snapshots/{dm_control_task}_{noise_level}/{run_id}_full")
         policy_net = tf.saved_model.load(str(path))
 
         # act_spec = environment_spec.actions

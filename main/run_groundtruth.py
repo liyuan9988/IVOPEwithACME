@@ -23,13 +23,17 @@ from acme.utils import loggers
 import numpy as np
 import tree
 
-ROOT_PATH = str(pathlib.Path(__file__).resolve().parent.parent)
-sys.path.append(ROOT_PATH)
+ROOT_PATH = pathlib.Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT_PATH))
 from src.load_data import load_policy_net, load_data_and_env
-from src.ope.deepiv import DeepIVLearner, make_ope_networks  # noqa: E402
 
 # Agent flags
 flags.DEFINE_integer('num_episodes', 100, 'number of episodes to evaluate.')
+flags.DEFINE_string(
+    'dataset_path',
+    str(ROOT_PATH.joinpath('offline_dataset').joinpath('stochastic')),
+    'Path to offline dataset directory.')
+
 FLAGS = flags.FLAGS
 
 
@@ -64,13 +68,15 @@ def main(_):
 
   # Load the offline dataset and environment.
   _, environment = load_data_and_env(problem_config['task_name'],
-                                     problem_config['prob_param'])
+                                     problem_config['prob_param'],
+                                     dataset_path=FLAGS.dataset_path)
   environment_spec = specs.make_environment_spec(environment)
 
   # Load pretrained target policy network.
   policy_net = load_policy_net(task_name=problem_config['task_name'],
                                params=problem_config['policy_param'],
-                               environment_spec=environment_spec)
+                               environment_spec=environment_spec,
+                               dataset_path=FLAGS.dataset_path)
 
   actor = actors.FeedForwardActor(policy_network=policy_net)
 
