@@ -125,12 +125,13 @@ class DFLearner(acme.Learner, tf2_savers.TFSaveable):
         next_action_2nd = self.policy(next_obs_2nd)
 
         discount_2nd = tf.expand_dims(discount_2nd, axis=1) * self.discount
+        weight = tf.expand_dims(discount_2nd + (1.0 - discount_2nd) * 5, axis=1)
         reg = snt.regularizers.L2(self.value_l2_reg)
         with tf.GradientTape() as tape:
             next_feature = self.value_feature(obs=next_obs_2nd, action=next_action_2nd)
             current_feature = self.value_feature(obs=current_obs_2nd, action=action_2nd)
             predicted_feature = current_feature - discount_2nd * next_feature
-            loss = linear_reg_loss(tf.expand_dims(reward_2nd, -1), predicted_feature, self.stage2_reg)
+            loss = linear_reg_loss(tf.expand_dims(reward_2nd, -1)*weight, predicted_feature*weight, self.stage2_reg)
             loss = loss + reg(self.value_feature.trainable_variables)
 
         gradient = tape.gradient(loss, self.value_feature.trainable_variables)
@@ -141,13 +142,14 @@ class DFLearner(acme.Learner, tf2_savers.TFSaveable):
         current_obs_2nd, action_2nd, reward_2nd, discount_2nd, next_obs_2nd, _ = self.data
         next_action_2nd = self.policy(next_obs_2nd)
 
+        weight = tf.expand_dims(discount_2nd + (1.0 - discount_2nd) * 5, axis=1)
         discount_2nd = tf.expand_dims(discount_2nd, axis=1) * self.discount
 
         next_feature = self.value_feature(obs=next_obs_2nd, action=next_action_2nd)
         current_feature = self.value_feature(obs=current_obs_2nd, action=action_2nd)
         predicted_feature = current_feature - discount_2nd * next_feature
-        self.value_func._weight = fit_linear(tf.expand_dims(reward_2nd, -1), predicted_feature, self.stage2_reg)
-        return linear_reg_loss(tf.expand_dims(reward_2nd, -1), predicted_feature, self.stage2_reg)
+        self.value_func._weight = fit_linear(tf.expand_dims(reward_2nd, -1)*weight, predicted_feature*weight, self.stage2_reg)
+        return linear_reg_loss(tf.expand_dims(reward_2nd, -1)*weight, predicted_feature*weight, self.stage2_reg)
 
     def step(self):
         # Do a batch of SGD.
