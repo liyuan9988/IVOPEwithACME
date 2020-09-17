@@ -32,6 +32,8 @@ from src.utils import ope_evaluation, generate_train_data
 # Agent flags
 flags.DEFINE_float('value_learning_rate', 2e-5, 'learning rate for the treatment_net update')
 flags.DEFINE_float('instrumental_learning_rate', 2e-5, 'learning rate for the instrumental_net update')
+flags.DEFINE_float('value_l2_reg', 1e-3, 'learning rate for the treatment_net update')
+flags.DEFINE_float('instrumental_l2_reg', 1e-3, 'learning rate for the treatment_net update')
 flags.DEFINE_float('stage1_reg', 1e-3, 'ridge regularizer for stage 1 regression')
 flags.DEFINE_float('stage2_reg', 1e-3, 'ridge regularizer for stage 2 regression')
 flags.DEFINE_integer('instrumental_iter', 20, 'number of iteration for instrumental function')
@@ -97,6 +99,8 @@ def main(_):
         discount=problem_config["discount"],
         value_learning_rate=FLAGS.value_learning_rate,
         instrumental_learning_rate=FLAGS.instrumental_learning_rate,
+        value_l2_reg = FLAGS.value_l2_reg,
+        instrumental_l2_reg = FLAGS.instrumental_l2_reg,
         stage1_reg=FLAGS.stage1_reg,
         stage2_reg=FLAGS.stage2_reg,
         instrumental_iter=FLAGS.instrumental_iter,

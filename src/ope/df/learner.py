@@ -31,6 +31,8 @@ class DFLearner(acme.Learner, tf2_savers.TFSaveable):
                  discount: float,
                  value_learning_rate: float,
                  instrumental_learning_rate: float,
+                 value_l2_reg: float,
+                 instrumental_l2_reg: float,
                  stage1_reg: float,
                  stage2_reg: float,
                  instrumental_iter: int,
@@ -48,6 +50,8 @@ class DFLearner(acme.Learner, tf2_savers.TFSaveable):
           discount: global discount.
           value_learning_rate: learning rate for the treatment_net update.
           instrumental_learning_rate: learning rate for the instrumental_net update.
+          value_l2_reg: l2 reg for value feature
+          instrumental_l2_reg: l2 reg for instrumental
           stage1_reg: ridge regularizer for stage 1 regression
           stage2_reg: ridge regularizer for stage 2 regression
           instrumental_iter: number of iteration for instrumental net
@@ -66,6 +70,8 @@ class DFLearner(acme.Learner, tf2_savers.TFSaveable):
         self.instrumental_iter = instrumental_iter
         self.value_iter = value_iter
         self.discount = discount
+        self.value_l2_reg = value_l2_reg
+        self.instrumental_reg = instrumental_l2_reg
 
         # Get an iterator over the dataset.
         self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
@@ -119,11 +125,13 @@ class DFLearner(acme.Learner, tf2_savers.TFSaveable):
         next_action_2nd = self.policy(next_obs_2nd)
 
         discount_2nd = tf.expand_dims(discount_2nd, axis=1) * self.discount
+        reg = snt.regularizers.L2(self.value_l2_reg)
         with tf.GradientTape() as tape:
             next_feature = self.value_feature(obs=next_obs_2nd, action=next_action_2nd)
             current_feature = self.value_feature(obs=current_obs_2nd, action=action_2nd)
             predicted_feature = current_feature - discount_2nd * next_feature
             loss = linear_reg_loss(tf.expand_dims(reward_2nd, -1), predicted_feature, self.stage2_reg)
+            loss = loss + reg(self.value_feature.trainable_variables)
 
         gradient = tape.gradient(loss, self.value_feature.trainable_variables)
         self._value_func_optimizer.apply(gradient, self.value_feature.trainable_variables)
