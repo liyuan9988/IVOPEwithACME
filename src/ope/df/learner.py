@@ -100,7 +100,7 @@ class DFLearner(acme.Learner, tf2_savers.TFSaveable):
         # Pull out the data needed for updates/priorities.
 
         if self.data is None:
-            self.data = next(self._iterator).data
+            self.data = next(self._iterator)
 
         for i in range(self.value_iter):
             self.update_value()
