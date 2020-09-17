@@ -123,8 +123,7 @@ class DFLearner(acme.Learner, tf2_savers.TFSaveable):
             next_feature = self.value_feature(obs=next_obs_2nd, action=next_action_2nd)
             current_feature = self.value_feature(obs=current_obs_2nd, action=action_2nd)
             predicted_feature = current_feature - discount_2nd * next_feature
-            aug_predicted_feature = tf.concat([predicted_feature, 1.0 - discount_2nd], axis=1)
-            loss = linear_reg_loss(tf.expand_dims(reward_2nd, -1), aug_predicted_feature, self.stage2_reg)
+            loss = linear_reg_loss(tf.expand_dims(reward_2nd, -1), predicted_feature, self.stage2_reg)
 
         gradient = tape.gradient(loss, self.value_feature.trainable_variables)
         self._value_func_optimizer.apply(gradient, self.value_feature.trainable_variables)
@@ -139,9 +138,8 @@ class DFLearner(acme.Learner, tf2_savers.TFSaveable):
         next_feature = self.value_feature(obs=next_obs_2nd, action=next_action_2nd)
         current_feature = self.value_feature(obs=current_obs_2nd, action=action_2nd)
         predicted_feature = current_feature - discount_2nd * next_feature
-        aug_predicted_feature = tf.concat([predicted_feature, 1.0 - discount_2nd], axis=1)
-        self.value_func._weight = fit_linear(tf.expand_dims(reward_2nd, -1), aug_predicted_feature, self.stage2_reg)
-        return linear_reg_loss(tf.expand_dims(reward_2nd, -1), aug_predicted_feature, self.stage2_reg)
+        self.value_func._weight = fit_linear(tf.expand_dims(reward_2nd, -1), predicted_feature, self.stage2_reg)
+        return linear_reg_loss(tf.expand_dims(reward_2nd, -1), predicted_feature, self.stage2_reg)
 
     def step(self):
         # Do a batch of SGD.
