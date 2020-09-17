@@ -21,7 +21,8 @@ def generate_train_data(policy_net, environment, n_samples):
         next_obs = timestep.observation
         reward = timestep.reward
         discount = 1.0
-
+        if timestep.last():
+            discount = 0.0
 
         current_obs_list.append(tf2_utils.add_batch_dim(current_obs))
         action_list.append(tf2_utils.add_batch_dim(action))
