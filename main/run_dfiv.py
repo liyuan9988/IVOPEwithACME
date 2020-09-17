@@ -26,7 +26,7 @@ sys.path.append(ROOT_PATH)
 
 from src.load_data import load_policy_net, load_data_and_env  # noqa: E402
 from src.ope.dfiv import DFIVLearner, make_ope_networks  # noqa: E402
-from src.utils import ope_evaluation
+from src.utils import ope_evaluation, generate_train_data
 
 flags.DEFINE_string('dataset_path', '/tmp/dataset', 'Path to dataset.')
 flags.DEFINE_string('task_name', 'cartpole_swingup', 'Task name.')
@@ -55,28 +55,41 @@ def main(_):
     problem_config = {
         'task_name': 'bsuite_catch',
         'prob_param': {
-            'noise_level': 0.0,
+            'noise_level': 0.2,
             'run_id': 0
         },
-        'policy_param': {
-            'noise_level': 0.0,
+        'target_policy_param': {
+            'env_noise_level': 0.0,
+            'policy_noise_level': 0.0,
+            'run_id': 1
+        },
+        'behavior_policy_param': {
+            'env_noise_level': 0.0,
+            'policy_noise_level': 0.2,
             'run_id': 1
         },
         'discount': 0.99,
     }
-    dataset, environment = load_data_and_env(problem_config['task_name'], problem_config['prob_param'])
+    _, environment = load_data_and_env(problem_config['task_name'], problem_config['prob_param'])
     environment_spec = specs.make_environment_spec(environment)
-
-    dataset = dataset.batch(FLAGS.batch_size)
 
     # Create the networks to optimize.
     value_func, instrumental_feature = make_ope_networks(
         problem_config['task_name'], environment_spec)
 
     # Load pretrained target policy network.
-    policy_net = load_policy_net(task_name=problem_config['task_name'],
-                                 params=problem_config['policy_param'],
-                                 environment_spec=environment_spec)
+    target_policy_net = load_policy_net(task_name=problem_config['task_name'],
+                                        params=problem_config['target_policy_param'],
+                                        environment_spec=environment_spec)
+
+    behavior_policy_net = load_policy_net(task_name=problem_config['task_name'],
+                                          params=problem_config['behavior_policy_param'],
+                                          environment_spec=environment_spec)
+
+    print("start generating transitions")
+    dataset = generate_train_data(behavior_policy_net, environment, 9000)
+    print("end generating transitions")
+    dataset = dataset.repeat().batch(1000)
 
     counter = counting.Counter()
     learner_counter = counting.Counter(counter, prefix='learner')
@@ -85,7 +98,7 @@ def main(_):
     learner = DFIVLearner(
         value_func=value_func,
         instrumental_feature=instrumental_feature,
-        policy_net=policy_net,
+        policy_net=target_policy_net,
         discount=problem_config["discount"],
         value_learning_rate=FLAGS.value_learning_rate,
         instrumental_learning_rate=FLAGS.instrumental_learning_rate,
@@ -102,11 +115,11 @@ def main(_):
         for _ in range(FLAGS.evaluate_every):
             learner.step()
         ope_evaluation(value_func=value_func,
-                       policy_net=policy_net,
+                       policy_net=target_policy_net,
                        environment=environment,
                        logger=eval_logger,
                        num_init_samples=FLAGS.evaluate_init_samples,
-                       mse_samples=1000,
+                       mse_samples=18,
                        discount=problem_config["discount"])
 
 
