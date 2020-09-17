@@ -45,10 +45,10 @@ class ValueFunction(snt.Module):
         super(ValueFunction, self).__init__()
         self._feature = ValueFeature(environment_spec)
         self.n_action = environment_spec.actions.num_values
-        self._weight = tf.random.uniform((50 * self.n_action + 1, 1))
+        self._weight = tf.random.uniform((50 * self.n_action, 1))
 
     def __call__(self, obs, action):
-        return tf.matmul(add_const_col(self._feature(obs, action)), self._weight)
+        return tf.matmul(self._feature(obs, action), self._weight)
 
 
 def make_value_func_bsuite(environment_spec) -> Tuple[snt.Module, snt.Module]:
