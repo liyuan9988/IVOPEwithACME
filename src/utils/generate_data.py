@@ -45,4 +45,5 @@ def generate_train_data(policy_net, environment, n_samples):
                                                action_data,
                                                reward_data,
                                                discount_data,
-                                               next_obs_data,))
+                                               next_obs_data,
+                                               action_data))
