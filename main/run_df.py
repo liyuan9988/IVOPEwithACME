@@ -118,7 +118,7 @@ def main(_):
                        environment=environment,
                        logger=eval_logger,
                        num_init_samples=FLAGS.evaluate_init_samples,
-                       mse_samples=1000,
+                       mse_samples=18,
                        discount=problem_config["discount"])
 
 
