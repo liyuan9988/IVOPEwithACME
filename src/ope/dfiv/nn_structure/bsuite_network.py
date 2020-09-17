@@ -48,7 +48,7 @@ class ValueFunction(snt.Module):
         self._weight = tf.random.uniform((50 * self.n_action + 1, 1))
 
     def __call__(self, obs, action):
-        return tf.matmul(self._feature(obs, action), self._weight)
+        return tf.matmul(add_const_col(self._feature(obs, action)), self._weight)
 
 
 def make_value_func_bsuite(environment_spec) -> Tuple[snt.Module, snt.Module]:
