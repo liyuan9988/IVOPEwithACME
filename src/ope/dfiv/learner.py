@@ -98,16 +98,16 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         # Pull out the data needed for updates/priorities.
         for i in range(self.instrumental_iter):
             inputs = next(self._iterator)
-            o_tm1, a_tm1, r_t, d_t, o_t, _ = inputs.data
+            o_tm1, a_tm1, r_t, d_t, o_t, _ = inputs
             stage1_loss = self.update_instrumental(o_tm1, a_tm1, r_t, d_t, o_t)
 
         for i in range(self.value_iter):
-            stage1_input = next(self._iterator).data
-            stage2_input = next(self._iterator).data
+            stage1_input = next(self._iterator)
+            stage2_input = next(self._iterator)
             stage2_loss = self.update_value(stage1_input, stage2_input)
 
-        stage1_input = next(self._iterator).data
-        stage2_input = next(self._iterator).data
+        stage1_input = next(self._iterator)
+        stage2_input = next(self._iterator)
         self.update_final_weight(stage1_input, stage2_input)
         self._num_steps.assign_add(1)
 
