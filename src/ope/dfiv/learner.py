@@ -122,7 +122,8 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
 
         with tf.GradientTape() as tape:
             feature = self.instrumental_feature(obs=current_obs, action=action)
-            loss = linear_reg_loss(target, feature, self.stage1_reg)
+            aug_feature = add_const_col(feature)
+            loss = linear_reg_loss(target, aug_feature, self.stage1_reg)
 
         gradient = tape.gradient(loss, self.instrumental_feature.trainable_variables)
         self._instrumental_func_optimizer.apply(gradient, self.instrumental_feature.trainable_variables)
@@ -144,8 +145,7 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
             predicted_feature = linear_reg_pred(instrumental_feature_2nd, stage1_weight)
             current_feature = self.value_feature(obs=current_obs_2nd, action=action_2nd)
             predicted_feature = current_feature - discount_1st * predicted_feature
-            aug_predicted_feature = tf.concat([predicted_feature, 1-discount_1st], axis=1)
-            loss = linear_reg_loss(tf.expand_dims(reward_2nd, -1), aug_predicted_feature, self.stage2_reg)
+            loss = linear_reg_loss(tf.expand_dims(reward_2nd, -1), predicted_feature, self.stage2_reg)
 
         gradient = tape.gradient(loss, self.value_feature.trainable_variables)
         self._value_func_optimizer.apply(gradient, self.value_feature.trainable_variables)
@@ -165,8 +165,7 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         predicted_feature = linear_reg_pred(instrumental_feature_2nd, stage1_weight)
         current_feature = self.value_feature(obs=current_obs_2nd, action=action_2nd)
         predicted_feature = current_feature - discount_1st * predicted_feature
-        aug_predicted_feature = tf.concat([predicted_feature, 1 - discount_1st], axis=1)
-        self.value_func._weight = fit_linear(tf.expand_dims(reward_2nd, -1), aug_predicted_feature, self.stage2_reg)
+        self.value_func._weight = fit_linear(tf.expand_dims(reward_2nd, -1), predicted_feature, self.stage2_reg)
 
     def step(self):
         # Do a batch of SGD.

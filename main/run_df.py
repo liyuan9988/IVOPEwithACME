@@ -49,7 +49,7 @@ FLAGS = flags.FLAGS
 def main(_):
     # Load the offline dataset and environment.
     problem_config = {
-        'task_name': 'bsuite_catch',
+        'task_name': 'bsuite_cartpole',
         'prob_param': {
             'noise_level': 0.0,
             'run_id': 0
@@ -84,9 +84,9 @@ def main(_):
 
 
     print("start generating transitions")
-    dataset = generate_train_data(behavior_policy_net, environment, 10000)
+    dataset = generate_train_data(behavior_policy_net, environment, 5000)
     print("end generating transitions")
-    dataset = dataset.batch(10000)
+    dataset = dataset.batch(5000)
 
     counter = counting.Counter()
     learner_counter = counting.Counter(counter, prefix='learner')
