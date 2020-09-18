@@ -27,7 +27,7 @@ def cal_mse(value_func, policy_net, environment, mse_samples, discount):
             current_obs = tf2_utils.add_batch_dim(current_obs)
             action = tf2_utils.add_batch_dim(action)
             mse_one = (reward - value_func(current_obs, action)) ** 2
-            print(value_func(current_obs, action))
+            print(value_func(current_obs, action).numpy().squeeze())
             print(f"reward = {reward}")
             print("=====End Episode=====")
 
@@ -37,7 +37,7 @@ def cal_mse(value_func, policy_net, environment, mse_samples, discount):
             current_obs = tf2_utils.add_batch_dim(current_obs)
             next_obs = tf2_utils.add_batch_dim(next_obs)
             mse_one = (reward + discount * value_func(next_obs, next_action) - value_func(current_obs, action)) ** 2
-            print(value_func(current_obs, action))
+            print(value_func(current_obs, action).numpy().squeeze())
         mse = mse + mse_one.numpy()
         sample_count += 1
     return mse / mse_samples
