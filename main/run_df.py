@@ -18,35 +18,28 @@ import sonnet as snt
 import tensorflow as tf
 import trfl
 
-import pathlib
 import sys
+from pathlib import Path
 
-ROOT_PATH = pathlib.Path(__file__).resolve().parent.parent
-sys.path.append(str(ROOT_PATH))
+ROOT_PATH = str(Path(__file__).resolve().parent.parent)
+sys.path.append(ROOT_PATH)
 
 from src.load_data import load_policy_net, load_data_and_env  # noqa: E402
-from src.ope.dfiv import DFIVLearner, make_ope_networks  # noqa: E402
+from src.ope.df.learner import DFLearner
+from src.ope.dfiv import make_ope_networks  # noqa: E402
 from src.utils import ope_evaluation, generate_train_data
-
-flags.DEFINE_string(
-    'dataset_path',
-    str(ROOT_PATH.joinpath('offline_dataset').joinpath('stochastic')),
-    'Path to offline dataset directory.')
-flags.DEFINE_string('task_name', 'cartpole_swingup', 'Task name.')
-flags.DEFINE_enum('task_class', 'control_suite',
-                  ['humanoid', 'rodent', 'control_suite'],
-                  'Task class.')
-flags.DEFINE_string('target_policy_path', '', 'Path to target policy snapshot')
 
 # Agent flags
 flags.DEFINE_float('value_learning_rate', 2e-5, 'learning rate for the treatment_net update')
 flags.DEFINE_float('instrumental_learning_rate', 2e-5, 'learning rate for the instrumental_net update')
+flags.DEFINE_float('value_l2_reg', 1e-3, 'learning rate for the treatment_net update')
+flags.DEFINE_float('instrumental_l2_reg', 1e-3, 'learning rate for the treatment_net update')
 flags.DEFINE_float('stage1_reg', 1e-3, 'ridge regularizer for stage 1 regression')
 flags.DEFINE_float('stage2_reg', 1e-3, 'ridge regularizer for stage 2 regression')
 flags.DEFINE_integer('instrumental_iter', 20, 'number of iteration for instrumental function')
 flags.DEFINE_integer('value_iter', 10, 'number of iteration for value function')
 
-flags.DEFINE_integer('batch_size', 2000, 'Batch size.')
+flags.DEFINE_integer('batch_size', 10000, 'Batch size.')
 flags.DEFINE_integer('evaluate_every', 1, 'Evaluation period.')
 flags.DEFINE_integer('evaluate_init_samples', 100, 'Number of initial samples for evaluation.')
 
@@ -58,7 +51,7 @@ def main(_):
     problem_config = {
         'task_name': 'bsuite_cartpole',
         'prob_param': {
-            'noise_level': 0.2,
+            'noise_level': 0.0,
             'run_id': 0
         },
         'target_policy_param': {
@@ -73,9 +66,7 @@ def main(_):
         },
         'discount': 0.99,
     }
-    _, environment = load_data_and_env(
-        problem_config['task_name'], problem_config['prob_param'],
-        dataset_path=FLAGS.dataset_path)
+    _, environment = load_data_and_env(problem_config['task_name'], problem_config['prob_param'])
     environment_spec = specs.make_environment_spec(environment)
 
     # Create the networks to optimize.
@@ -85,30 +76,31 @@ def main(_):
     # Load pretrained target policy network.
     target_policy_net = load_policy_net(task_name=problem_config['task_name'],
                                         params=problem_config['target_policy_param'],
-                                        environment_spec=environment_spec,
-                                        dataset_path=FLAGS.dataset_path)
+                                        environment_spec=environment_spec)
 
     behavior_policy_net = load_policy_net(task_name=problem_config['task_name'],
-                                          params=problem_config['behavior_policy_param'],
-                                          environment_spec=environment_spec,
-                                          dataset_path=FLAGS.dataset_path)
+                                        params=problem_config['behavior_policy_param'],
+                                        environment_spec=environment_spec)
+
 
     print("start generating transitions")
-    dataset = generate_train_data(behavior_policy_net, environment, 9000)
+    dataset = generate_train_data(behavior_policy_net, environment, 5000)
     print("end generating transitions")
-    dataset = dataset.repeat().batch(1000)
+    dataset = dataset.batch(5000)
 
     counter = counting.Counter()
     learner_counter = counting.Counter(counter, prefix='learner')
 
     # The learner updates the parameters (and initializes them).
-    learner = DFIVLearner(
+    learner = DFLearner(
         value_func=value_func,
         instrumental_feature=instrumental_feature,
         policy_net=target_policy_net,
         discount=problem_config["discount"],
         value_learning_rate=FLAGS.value_learning_rate,
         instrumental_learning_rate=FLAGS.instrumental_learning_rate,
+        value_l2_reg = FLAGS.value_l2_reg,
+        instrumental_l2_reg = FLAGS.instrumental_l2_reg,
         stage1_reg=FLAGS.stage1_reg,
         stage2_reg=FLAGS.stage2_reg,
         instrumental_iter=FLAGS.instrumental_iter,
