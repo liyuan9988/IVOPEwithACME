@@ -60,7 +60,8 @@ def main(_):
           'run_id': 0
       },
       'policy_param': {
-          'noise_level': 0.0,
+          'env_noise_level': 0.0,
+          'policy_noise_level': 0.0,
           'run_id': 1
       },
       'discount': 0.99,

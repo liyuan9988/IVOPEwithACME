@@ -49,20 +49,22 @@ def load_policy_net(
     if task_name.startswith("bsuite"):
         # BSuite tasks.
         bsuite_id = task_name[len("bsuite_"):] + "/0"
-        noise_level = params["noise_level"]
+        env_noise_level = params["env_noise_level"]
+        policy_noise_level = params["policy_noise_level"]
         run_id = params["run_id"]
-        path = dataset_path.joinpath(f"bsuite/snapshots/{bsuite_id}_{noise_level}/{run_id}_full")
+        path = dataset_path.joinpath(f"bsuite/snapshots/{bsuite_id}_{env_noise_level}/{run_id}_full")
         policy_net = tf.saved_model.load(str(path))
         policy_net = snt.Sequential([
             policy_net,
-            lambda q: trfl.epsilon_greedy(q, epsilon=0.0).sample(),
+            lambda q: trfl.epsilon_greedy(q, epsilon=policy_noise_level).sample(),
         ])
     elif task_name.startswith("dm_control"):
         # DM Control tasks.
         dm_control_task = task_name[len("dm_control_"):]
-        noise_level = params["noise_level"]
+        env_noise_level = params["env_noise_level"]
+        policy_noise_level = params["policy_noise_level"]
         run_id = params["run_id"]
-        path = dataset_path.joinpath(f"dm_control_suite/snapshots/{dm_control_task}_{noise_level}/{run_id}_full")
+        path = dataset_path.joinpath(f"dm_control_suite/snapshots/{dm_control_task}_{env_noise_level}/{run_id}_full")
         policy_net = tf.saved_model.load(str(path))
 
         # act_spec = environment_spec.actions
@@ -71,8 +73,8 @@ def load_policy_net(
             observation_network,
             policy_net,
             # Uncomment these two lines to add action noise to target policy.
-            # acme_utils.GaussianNoise(0.0),
-            # networks.ClipToSpec(act_spec),
+            acme_utils.GaussianNoise(policy_noise_level),
+            networks.ClipToSpec(environment_spec.actions),
         ])
     else:
         raise ValueError(f"task name {task_name} is unknown")
