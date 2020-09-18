@@ -36,7 +36,7 @@ class ValueFeature(snt.Module):
     def __call__(self, obs, action):
         action_aug = tf.one_hot(action, depth=self.n_action)
         feature = self._net(obs)
-        return add_const_col(self.last_flat(outer_prod(feature, action_aug)))
+        return self.last_flat(outer_prod(add_const_col(feature), action_aug))
 
 
 class ValueFunction(snt.Module):
