@@ -45,7 +45,8 @@ class ValueFunction(snt.Module):
         super(ValueFunction, self).__init__()
         self._feature = ValueFeature(environment_spec)
         self.n_action = environment_spec.actions.num_values
-        self._weight = tf.random.uniform((51 * self.n_action, 1))
+        self._weight = tf.Variable(
+          tf.zeros((51 * self.n_action, 1), dtype=tf.float32))
 
     def __call__(self, obs, action):
         return tf.matmul(self._feature(obs, action), self._weight)
