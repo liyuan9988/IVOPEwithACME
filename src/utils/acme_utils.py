@@ -12,8 +12,6 @@ import dm_env
 import numpy as np
 import reverb
 import sonnet as snt
-if snt.__version__.split('.')[0] == '1':
-  import sonnet.v2 as snt
 import tensorflow_probability as tfp
 import tensorflow as tf
 import tree

@@ -18,17 +18,20 @@ import sonnet as snt
 import tensorflow as tf
 import trfl
 
+import pathlib
 import sys
-from pathlib import Path
 
-ROOT_PATH = str(Path(__file__).resolve().parent.parent)
-sys.path.append(ROOT_PATH)
+ROOT_PATH = pathlib.Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT_PATH))
 
 from src.load_data import load_policy_net, load_data_and_env  # noqa: E402
 from src.ope.dfiv import DFIVLearner, make_ope_networks  # noqa: E402
 from src.utils import ope_evaluation, generate_train_data
 
-flags.DEFINE_string('dataset_path', '/tmp/dataset', 'Path to dataset.')
+flags.DEFINE_string(
+    'dataset_path',
+    str(ROOT_PATH.joinpath('offline_dataset').joinpath('stochastic')),
+    'Path to offline dataset directory.')
 flags.DEFINE_string('task_name', 'cartpole_swingup', 'Task name.')
 flags.DEFINE_enum('task_class', 'control_suite',
                   ['humanoid', 'rodent', 'control_suite'],
@@ -70,7 +73,9 @@ def main(_):
         },
         'discount': 0.99,
     }
-    _, environment = load_data_and_env(problem_config['task_name'], problem_config['prob_param'])
+    _, environment = load_data_and_env(
+        problem_config['task_name'], problem_config['prob_param'],
+        dataset_path=FLAGS.dataset_path)
     environment_spec = specs.make_environment_spec(environment)
 
     # Create the networks to optimize.
@@ -80,11 +85,13 @@ def main(_):
     # Load pretrained target policy network.
     target_policy_net = load_policy_net(task_name=problem_config['task_name'],
                                         params=problem_config['target_policy_param'],
-                                        environment_spec=environment_spec)
+                                        environment_spec=environment_spec,
+                                        dataset_path=FLAGS.dataset_path)
 
     behavior_policy_net = load_policy_net(task_name=problem_config['task_name'],
                                           params=problem_config['behavior_policy_param'],
-                                          environment_spec=environment_spec)
+                                          environment_spec=environment_spec,
+                                          dataset_path=FLAGS.dataset_path)
 
     print("start generating transitions")
     dataset = generate_train_data(behavior_policy_net, environment, 9000)
