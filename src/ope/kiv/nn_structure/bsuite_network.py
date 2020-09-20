@@ -26,7 +26,7 @@ class RandomFourierFeature(snt.Module):
 
     def __call__(self, x):
         self._initialize(x)
-        z_vec = tf.cos(tf.matmul(x, self.random_weights_) + self.self.random_offset_) / np.sqrt(self.n_components)
+        z_vec = tf.cos(tf.matmul(x, self.random_weights_) + self.random_offset_) / np.sqrt(self.n_components)
         return z_vec
 
 @snt.allow_empty_variables
@@ -41,7 +41,7 @@ class InstrumentalFeature(snt.Module):
 
     def __call__(self, obs, action):
         action_aug = tf.one_hot(action, depth=self.n_action)
-        feature = self.rff(obs)
+        feature = self.rff(self.flat(obs))
         return self.last_flat(outer_prod(feature, action_aug))
 
 
