@@ -47,4 +47,6 @@ def generate_train_data(policy_net, environment, n_samples):
                                                reward_data,
                                                discount_data,
                                                next_obs_data,
+                                               # The last action is not valid
+                                               # and should not be used.
                                                action_data))

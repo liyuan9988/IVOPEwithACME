@@ -96,7 +96,8 @@ def main(_):
     print("start generating transitions")
     dataset = generate_train_data(behavior_policy_net, environment, 9000)
     print("end generating transitions")
-    dataset = dataset.repeat().batch(1000)
+    # dataset = dataset.repeat().batch(1000)
+    dataset = dataset.shuffle(1024 * 100).repeat().batch(1024)
 
     counter = counting.Counter()
     learner_counter = counting.Counter(counter, prefix='learner')
