@@ -68,7 +68,7 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
 
         self.stage1_input = next(self._iterator)
         self.stage2_input = next(self._iterator)
-    
+
         self._variables = [
             value_func.trainable_variables,
             instrumental_feature.trainable_variables,

@@ -16,12 +16,13 @@ class InstrumentalFeature(snt.Module):
                                     snt.nets.MLP([50, 50, 50], activate_final=True)])
 
         self.n_action = environment_spec.actions.num_values
+        self.flat = snt.Flatten()
         self.last_flat = snt.Flatten()
 
     def __call__(self, obs, action):
         action_aug = tf.one_hot(action, depth=self.n_action)
-        feature = self._net(obs)
-        return self.last_flat(outer_prod(feature, action_aug))
+        feature = self._net(tf.concat[self.flat(obs), action_aug])
+        return feature
 
 
 class ValueFeature(snt.Module):
@@ -31,12 +32,13 @@ class ValueFeature(snt.Module):
         self._net = snt.Sequential([snt.Flatten(),
                                     snt.nets.MLP([50, 50], activate_final=True)])
         self.n_action = environment_spec.actions.num_values
+        self.flat = snt.Flatten()
         self.last_flat = snt.Flatten()
 
     def __call__(self, obs, action):
         action_aug = tf.one_hot(action, depth=self.n_action)
-        feature = self._net(obs)
-        return self.last_flat(outer_prod(add_const_col(feature), action_aug))
+        feature = self._net(tf.concat[self.flat(obs), action_aug])
+        return feature
 
 
 class ValueFunction(snt.Module):
@@ -46,7 +48,7 @@ class ValueFunction(snt.Module):
         self._feature = ValueFeature(environment_spec)
         self.n_action = environment_spec.actions.num_values
         self._weight = tf.Variable(
-          tf.zeros((51 * self.n_action, 1), dtype=tf.float32))
+          tf.zeros((50, 1), dtype=tf.float32))
 
     def __call__(self, obs, action):
         return tf.matmul(self._feature(obs, action), self._weight)
