@@ -69,6 +69,8 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
 
         # Get an iterator over the dataset.
         self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
+        self.stage1_input = next(self._iterator)
+        self.stage2_input = next(self._iterator)
 
         self.value_func = value_func
         self.value_feature = value_func._feature
@@ -99,17 +101,13 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         # Pull out the data needed for updates/priorities.
         for i in range(self.instrumental_iter):
             inputs = next(self._iterator)
-            o_tm1, a_tm1, r_t, d_t, o_t, _ = inputs
+            o_tm1, a_tm1, r_t, d_t, o_t, _ = self.stage1_input
             stage1_loss = self.update_instrumental(o_tm1, a_tm1, r_t, d_t, o_t)
 
         for i in range(self.value_iter):
-            stage1_input = next(self._iterator)
-            stage2_input = next(self._iterator)
-            stage2_loss = self.update_value(stage1_input, stage2_input)
+            stage2_loss = self.update_value(self.stage1_input, self.stage2_input)
 
-        stage1_input = next(self._iterator)
-        stage2_input = next(self._iterator)
-        self.update_final_weight(stage1_input, stage2_input)
+        self.update_final_weight(self.stage1_input, self.stage2_input)
         self._num_steps.assign_add(1)
 
         # Compute the global norm of the gradients for logging.
@@ -124,8 +122,7 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
 
         with tf.GradientTape() as tape:
             feature = self.instrumental_feature(obs=current_obs, action=action)
-            aug_feature = add_const_col(feature)
-            loss = linear_reg_loss(target, aug_feature, self.stage1_reg)
+            loss = linear_reg_loss(target, feature, self.stage1_reg)
 
         gradient = tape.gradient(loss, self.instrumental_feature.trainable_variables)
         self._instrumental_func_optimizer.apply(gradient, self.instrumental_feature.trainable_variables)
