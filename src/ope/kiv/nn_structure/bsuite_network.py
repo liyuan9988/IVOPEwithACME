@@ -22,7 +22,7 @@ class RandomFourierFeature(snt.Module):
         self.random_weights_ = np.sqrt(2 * self.gamma) * tf.random.normal(
             shape=(n_features, self.n_components))
 
-        self.random_offset_ = tf.random.uniform(minval=0, maxval=2 * np.pi, shape=self.n_components)
+        self.random_offset_ = tf.random.uniform(minval=0, maxval=2 * np.pi, shape=(1, self.n_components))
 
     def __call__(self, x):
         self._initialize(x)
