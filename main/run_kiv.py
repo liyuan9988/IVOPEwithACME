@@ -94,26 +94,22 @@ def main(_):
                                           dataset_path=FLAGS.dataset_path)
 
     print("start generating transitions")
-    dataset = generate_train_data(behavior_policy_net, environment, 9000)
+    dataset = generate_train_data(behavior_policy_net, environment, 180000)
     print("end generating transitions")
     # dataset = dataset.repeat().batch(1000)
-    dataset = dataset.shuffle(1024 * 100).repeat().batch(1024)
+    dataset = dataset.batch(90000)
 
     counter = counting.Counter()
     learner_counter = counting.Counter(counter, prefix='learner')
 
     # The learner updates the parameters (and initializes them).
-    learner = DFIVLearner(
+    learner = KIVLearner(
         value_func=value_func,
         instrumental_feature=instrumental_feature,
         policy_net=target_policy_net,
         discount=problem_config["discount"],
-        value_learning_rate=FLAGS.value_learning_rate,
-        instrumental_learning_rate=FLAGS.instrumental_learning_rate,
         stage1_reg=FLAGS.stage1_reg,
         stage2_reg=FLAGS.stage2_reg,
-        instrumental_iter=FLAGS.instrumental_iter,
-        value_iter=FLAGS.value_iter,
         dataset=dataset,
         counter=learner_counter)
 
