@@ -65,9 +65,10 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
         self.instrumental_feature = instrumental_feature
         self.policy = policy_net
 
-        self.stage1_input = None
-        self.stage2_input = None
 
+        self.stage1_input = next(self._iterator)
+        self.stage2_input = next(self._iterator)
+    
         self._variables = [
             value_func.trainable_variables,
             instrumental_feature.trainable_variables,
@@ -88,9 +89,7 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
         stage1_loss = None
         stage2_loss = None
         # Pull out the data needed for updates/priorities.
-        if self.stage2_input is None:
-            self.stage1_input = next(self._iterator)
-            self.stage2_input = next(self._iterator)
+
 
         o_tm1, a_tm1, r_t, d_t, o_t, _ = self.stage1_input
         stage1_loss, stage2_loss = self.update_final_weight(self.stage1_input, self.stage2_input)
