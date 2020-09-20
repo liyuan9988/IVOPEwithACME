@@ -21,7 +21,7 @@ class InstrumentalFeature(snt.Module):
 
     def __call__(self, obs, action):
         action_aug = tf.one_hot(action, depth=self.n_action)
-        feature = self._net(tf.concat[self.flat(obs), action_aug])
+        feature = self._net(tf.concat([self.flat(obs), action_aug], axis=1))
         return feature
 
 
@@ -37,7 +37,7 @@ class ValueFeature(snt.Module):
 
     def __call__(self, obs, action):
         action_aug = tf.one_hot(action, depth=self.n_action)
-        feature = self._net(tf.concat[self.flat(obs), action_aug])
+        feature = self._net(tf.concat([self.flat(obs), action_aug], axis=1))
         return feature
 
 
