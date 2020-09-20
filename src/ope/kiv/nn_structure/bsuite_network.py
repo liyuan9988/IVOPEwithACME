@@ -58,7 +58,7 @@ class ValueFeature(snt.Module):
     def __call__(self, obs, action):
         action_aug = tf.one_hot(action, depth=self.n_action)
         feature = self._net(obs)
-        return self.last_flat(outer_prod(add_const_col(feature), action_aug))
+        return self.last_flat(outer_prod(feature, action_aug))
 
 
 @snt.allow_empty_variables
@@ -69,7 +69,7 @@ class ValueFunction(snt.Module):
         self._feature = ValueFeature(environment_spec)
         self.n_action = environment_spec.actions.num_values
         self._weight = tf.Variable(
-            tf.zeros((51 * self.n_action, 1), dtype=tf.float32))
+            tf.zeros((100 * self.n_action, 1), dtype=tf.float32))
 
     def __call__(self, obs, action):
         return tf.matmul(self._feature(obs, action), self._weight)
