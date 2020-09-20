@@ -48,10 +48,10 @@ class ValueFunction(snt.Module):
         self._feature = ValueFeature(environment_spec)
         self.n_action = environment_spec.actions.num_values
         self._weight = tf.Variable(
-          tf.zeros((50, 1), dtype=tf.float32))
+          tf.zeros((51, 1), dtype=tf.float32))
 
     def __call__(self, obs, action):
-        return tf.matmul(self._feature(obs, action), self._weight)
+        return tf.matmul(add_const_col(self._feature(obs, action)), self._weight)
 
 
 def make_value_func_bsuite(environment_spec) -> Tuple[snt.Module, snt.Module]:
