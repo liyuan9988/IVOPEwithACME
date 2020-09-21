@@ -131,7 +131,7 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
     def update_value(self, stage1_input, stage2_input):
         current_obs_1st, action_1st, reward_1st, discount_1st, next_obs_1st = stage1_input[:5]
         current_obs_2nd, action_2nd, reward_2nd, discount_2nd = stage2_input[:4]
-        next_action_1st = self.policy(next_obs_1st, training=False)
+        next_action_1st = self.policy(next_obs_1st)
         discount_1st = tf.expand_dims(discount_1st, axis=1)
         discount_2nd = tf.expand_dims(discount_2nd, axis=1)
 
