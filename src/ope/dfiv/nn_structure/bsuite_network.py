@@ -17,12 +17,12 @@ class InstrumentalFeature(snt.Module):
 
         self.n_action = environment_spec.actions.num_values
         self.flat = snt.Flatten()
-        self.last_flat = snt.Flatten()
+        self.batch_norm = snt.BatchNorm(create_offset=True, create_scale=True)
 
     def __call__(self, obs, action):
         action_aug = tf.one_hot(action, depth=self.n_action)
         feature = self._net(tf.concat([self.flat(obs), action_aug], axis=1))
-        return feature
+        return self.batch_norm(feature)
 
 
 class ValueFeature(snt.Module):
@@ -33,12 +33,12 @@ class ValueFeature(snt.Module):
                                     snt.nets.MLP([50, 50], activate_final=True)])
         self.n_action = environment_spec.actions.num_values
         self.flat = snt.Flatten()
-        self.last_flat = snt.Flatten()
+        self.batch_norm = snt.BatchNorm(create_offset=True, create_scale=True)
 
     def __call__(self, obs, action):
         action_aug = tf.one_hot(action, depth=self.n_action)
         feature = self._net(tf.concat([self.flat(obs), action_aug], axis=1))
-        return feature
+        return self.batch_norm(feature)
 
 
 class ValueFunction(snt.Module):

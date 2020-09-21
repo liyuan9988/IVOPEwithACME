@@ -117,10 +117,10 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
     def update_instrumental(self, current_obs, action, reward, discount, next_obs):
         next_action = self.policy(next_obs)
         discount = tf.expand_dims(discount, axis=1)
-        target = discount * self.value_feature(next_obs, next_action)
+        target = discount * self.value_feature(next_obs, next_action, training=False)
 
         with tf.GradientTape() as tape:
-            feature = self.instrumental_feature(obs=current_obs, action=action) * discount
+            feature = self.instrumental_feature(obs=current_obs, action=action, training=True) * discount
             loss = linear_reg_loss(target, feature, self.stage1_reg)
 
         gradient = tape.gradient(loss, self.instrumental_feature.trainable_variables)
@@ -131,18 +131,18 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
     def update_value(self, stage1_input, stage2_input):
         current_obs_1st, action_1st, reward_1st, discount_1st, next_obs_1st = stage1_input[:5]
         current_obs_2nd, action_2nd, reward_2nd, discount_2nd = stage2_input[:4]
-        next_action_1st = self.policy(next_obs_1st)
+        next_action_1st = self.policy(next_obs_1st, training=False)
         discount_1st = tf.expand_dims(discount_1st, axis=1)
         discount_2nd = tf.expand_dims(discount_2nd, axis=1)
 
-        instrumental_feature_1st = self.instrumental_feature(obs=current_obs_1st, action=action_1st) * discount_1st
-        instrumental_feature_2nd = self.instrumental_feature(obs=current_obs_2nd, action=action_2nd) * discount_2nd
+        instrumental_feature_1st = self.instrumental_feature(obs=current_obs_1st, action=action_1st, training=False) * discount_1st
+        instrumental_feature_2nd = self.instrumental_feature(obs=current_obs_2nd, action=action_2nd, training=False) * discount_2nd
 
         with tf.GradientTape() as tape:
-            target_1st = discount_1st * self.value_feature(obs=next_obs_1st, action=next_action_1st)
+            target_1st = discount_1st * self.value_feature(obs=next_obs_1st, action=next_action_1st, training=True)
             stage1_weight = fit_linear(target_1st, instrumental_feature_1st, self.stage1_reg)
             predicted_feature = linear_reg_pred(instrumental_feature_2nd, stage1_weight)
-            current_feature = self.value_feature(obs=current_obs_2nd, action=action_2nd)
+            current_feature = self.value_feature(obs=current_obs_2nd, action=action_2nd, training=True)
             predicted_feature = current_feature - self.discount * predicted_feature * discount_2nd
             loss = linear_reg_loss(tf.expand_dims(reward_2nd, -1), predicted_feature, self.stage2_reg)
 
@@ -157,13 +157,13 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         discount_1st = tf.expand_dims(discount_1st, axis=1)
         discount_2nd = tf.expand_dims(discount_2nd, axis=1)
 
-        instrumental_feature_1st = self.instrumental_feature(obs=current_obs_1st, action=action_1st) * discount_1st
-        instrumental_feature_2nd = self.instrumental_feature(obs=current_obs_2nd, action=action_2nd) * discount_2nd
+        instrumental_feature_1st = self.instrumental_feature(obs=current_obs_1st, action=action_1st, training=False) * discount_1st
+        instrumental_feature_2nd = self.instrumental_feature(obs=current_obs_2nd, action=action_2nd, training=False) * discount_2nd
 
-        target_1st = discount_1st * self.value_feature(obs=next_obs_1st, action=next_action_1st)
+        target_1st = discount_1st * self.value_feature(obs=next_obs_1st, action=next_action_1st, training=False)
         stage1_weight = fit_linear(target_1st, instrumental_feature_1st, self.stage1_reg)
         predicted_feature = linear_reg_pred(instrumental_feature_2nd, stage1_weight)
-        current_feature = self.value_feature(obs=current_obs_2nd, action=action_2nd)
+        current_feature = self.value_feature(obs=current_obs_2nd, action=action_2nd, training=False)
         predicted_feature = add_const_col(current_feature) \
                             - self.discount * add_const_col(predicted_feature) * discount_2nd
         self.value_func._weight.assign(
