@@ -19,10 +19,10 @@ class InstrumentalFeature(snt.Module):
         self.flat = snt.Flatten()
         self.batch_norm = snt.BatchNorm(create_offset=True, create_scale=True)
 
-    def __call__(self, obs, action):
+    def __call__(self, obs, action, training=False):
         action_aug = tf.one_hot(action, depth=self.n_action)
         feature = self._net(tf.concat([self.flat(obs), action_aug], axis=1))
-        return self.batch_norm(feature)
+        return self.batch_norm(feature, is_training=training)
 
 
 class ValueFeature(snt.Module):
@@ -35,10 +35,10 @@ class ValueFeature(snt.Module):
         self.flat = snt.Flatten()
         self.batch_norm = snt.BatchNorm(create_offset=True, create_scale=True)
 
-    def __call__(self, obs, action):
+    def __call__(self, obs, action, training=False):
         action_aug = tf.one_hot(action, depth=self.n_action)
         feature = self._net(tf.concat([self.flat(obs), action_aug], axis=1))
-        return self.batch_norm(feature)
+        return self.batch_norm(feature, is_training=training)
 
 
 class ValueFunction(snt.Module):
@@ -50,8 +50,8 @@ class ValueFunction(snt.Module):
         self._weight = tf.Variable(
           tf.zeros((51, 1), dtype=tf.float32))
 
-    def __call__(self, obs, action):
-        return tf.matmul(add_const_col(self._feature(obs, action)), self._weight)
+    def __call__(self, obs, action, training=False):
+        return tf.matmul(add_const_col(self._feature(obs, action, training)), self._weight)
 
 
 def make_value_func_bsuite(environment_spec) -> Tuple[snt.Module, snt.Module]:
