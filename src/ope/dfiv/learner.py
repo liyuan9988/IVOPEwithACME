@@ -31,6 +31,8 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
                  discount: float,
                  value_learning_rate: float,
                  instrumental_learning_rate: float,
+                 value_reg: float,
+                 instrumental_reg: float,
                  stage1_reg: float,
                  stage2_reg: float,
                  instrumental_iter: int,
@@ -66,6 +68,8 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         self.instrumental_iter = instrumental_iter
         self.value_iter = value_iter
         self.discount = discount
+        self.value_reg = value_reg
+        self.instrumental_reg = instrumental_reg
 
         # Get an iterator over the dataset.
         self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
@@ -118,10 +122,11 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         next_action = self.policy(next_obs)
         discount = tf.expand_dims(discount, axis=1)
         target = discount * self.value_feature(next_obs, next_action, training=False)
-
+        l2 = snt.regularizers.L2(self.instrumental_reg)
         with tf.GradientTape() as tape:
             feature = self.instrumental_feature(obs=current_obs, action=action, training=True) * discount
             loss = linear_reg_loss(target, feature, self.stage1_reg)
+            loss = loss + l2(self.instrumental_feature.trainable_variables)
 
         gradient = tape.gradient(loss, self.instrumental_feature.trainable_variables)
         self._instrumental_func_optimizer.apply(gradient, self.instrumental_feature.trainable_variables)
@@ -135,9 +140,11 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         discount_1st = tf.expand_dims(discount_1st, axis=1)
         discount_2nd = tf.expand_dims(discount_2nd, axis=1)
 
-        instrumental_feature_1st = self.instrumental_feature(obs=current_obs_1st, action=action_1st, training=False) * discount_1st
-        instrumental_feature_2nd = self.instrumental_feature(obs=current_obs_2nd, action=action_2nd, training=False) * discount_2nd
-
+        instrumental_feature_1st = self.instrumental_feature(obs=current_obs_1st, action=action_1st,
+                                                             training=False) * discount_1st
+        instrumental_feature_2nd = self.instrumental_feature(obs=current_obs_2nd, action=action_2nd,
+                                                             training=False) * discount_2nd
+        l2 = snt.regularizers.L2(self.value_reg)
         with tf.GradientTape() as tape:
             target_1st = discount_1st * self.value_feature(obs=next_obs_1st, action=next_action_1st, training=True)
             stage1_weight = fit_linear(target_1st, instrumental_feature_1st, self.stage1_reg)
@@ -145,6 +152,7 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
             current_feature = self.value_feature(obs=current_obs_2nd, action=action_2nd, training=True)
             predicted_feature = current_feature - self.discount * predicted_feature * discount_2nd
             loss = linear_reg_loss(tf.expand_dims(reward_2nd, -1), predicted_feature, self.stage2_reg)
+            loss = loss + l2(self.value_feature.trainable_variables)
 
         gradient = tape.gradient(loss, self.value_feature.trainable_variables)
         self._value_func_optimizer.apply(gradient, self.value_feature.trainable_variables)
@@ -157,8 +165,10 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         discount_1st = tf.expand_dims(discount_1st, axis=1)
         discount_2nd = tf.expand_dims(discount_2nd, axis=1)
 
-        instrumental_feature_1st = self.instrumental_feature(obs=current_obs_1st, action=action_1st, training=False) * discount_1st
-        instrumental_feature_2nd = self.instrumental_feature(obs=current_obs_2nd, action=action_2nd, training=False) * discount_2nd
+        instrumental_feature_1st = self.instrumental_feature(obs=current_obs_1st, action=action_1st,
+                                                             training=False) * discount_1st
+        instrumental_feature_2nd = self.instrumental_feature(obs=current_obs_2nd, action=action_2nd,
+                                                             training=False) * discount_2nd
 
         target_1st = discount_1st * self.value_feature(obs=next_obs_1st, action=next_action_1st, training=False)
         stage1_weight = fit_linear(target_1st, instrumental_feature_1st, self.stage1_reg)
