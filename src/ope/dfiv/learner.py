@@ -124,7 +124,7 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         target = discount * self.value_feature(next_obs, next_action, training=False)
         l2 = snt.regularizers.L2(self.instrumental_reg)
         with tf.GradientTape() as tape:
-            feature = self.instrumental_feature(obs=current_obs, action=action, training=True) * discount
+            feature = self.instrumental_feature(obs=current_obs, action=action, training=True)
             loss = linear_reg_loss(target, feature, self.stage1_reg)
             loss = loss + l2(self.instrumental_feature.trainable_variables)
 
@@ -141,16 +141,16 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         discount_2nd = tf.expand_dims(discount_2nd, axis=1)
 
         instrumental_feature_1st = self.instrumental_feature(obs=current_obs_1st, action=action_1st,
-                                                             training=False) * discount_1st
+                                                             training=False)
         instrumental_feature_2nd = self.instrumental_feature(obs=current_obs_2nd, action=action_2nd,
-                                                             training=False) * discount_2nd
+                                                             training=False)
         l2 = snt.regularizers.L2(self.value_reg)
         with tf.GradientTape() as tape:
             target_1st = discount_1st * self.value_feature(obs=next_obs_1st, action=next_action_1st, training=True)
             stage1_weight = fit_linear(target_1st, instrumental_feature_1st, self.stage1_reg)
             predicted_feature = linear_reg_pred(instrumental_feature_2nd, stage1_weight)
             current_feature = self.value_feature(obs=current_obs_2nd, action=action_2nd, training=True)
-            predicted_feature = current_feature - self.discount * predicted_feature * discount_2nd
+            predicted_feature = current_feature - self.discount * predicted_feature
             loss = linear_reg_loss(tf.expand_dims(reward_2nd, -1), predicted_feature, self.stage2_reg)
             loss = loss + l2(self.value_feature.trainable_variables)
 
@@ -166,16 +166,16 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         discount_2nd = tf.expand_dims(discount_2nd, axis=1)
 
         instrumental_feature_1st = self.instrumental_feature(obs=current_obs_1st, action=action_1st,
-                                                             training=False) * discount_1st
+                                                             training=False)
         instrumental_feature_2nd = self.instrumental_feature(obs=current_obs_2nd, action=action_2nd,
-                                                             training=False) * discount_2nd
+                                                             training=False)
 
         target_1st = discount_1st * self.value_feature(obs=next_obs_1st, action=next_action_1st, training=False)
         stage1_weight = fit_linear(target_1st, instrumental_feature_1st, self.stage1_reg)
         predicted_feature = linear_reg_pred(instrumental_feature_2nd, stage1_weight)
         current_feature = self.value_feature(obs=current_obs_2nd, action=action_2nd, training=False)
         predicted_feature = add_const_col(current_feature) \
-                            - self.discount * add_const_col(predicted_feature) * discount_2nd
+                            - self.discount * add_const_col(predicted_feature)
         self.value_func._weight.assign(
             fit_linear(tf.expand_dims(reward_2nd, -1), predicted_feature, self.stage2_reg))
 
