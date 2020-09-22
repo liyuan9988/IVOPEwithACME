@@ -25,7 +25,7 @@ ROOT_PATH = pathlib.Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT_PATH))
 
 from src.load_data import load_policy_net, load_data_and_env  # noqa: E402
-from src.ope.dfiv import DFIVLearner, make_ope_networks  # noqa: E402
+from src.ope.kiv import KIVLearner, make_ope_networks  # noqa: E402
 from src.utils import ope_evaluation, generate_train_data
 
 flags.DEFINE_string(
@@ -43,12 +43,8 @@ flags.DEFINE_float('value_learning_rate', 2e-5, 'learning rate for the treatment
 flags.DEFINE_float('instrumental_learning_rate', 2e-5, 'learning rate for the instrumental_net update')
 flags.DEFINE_float('stage1_reg', 1e-3, 'ridge regularizer for stage 1 regression')
 flags.DEFINE_float('stage2_reg', 1e-3, 'ridge regularizer for stage 2 regression')
-flags.DEFINE_float('instrumental_reg', 1e-3, 'ridge regularizer instrumental')
-flags.DEFINE_float('value_reg', 1e-3, 'ridge regularizer for value_reg')
-
 flags.DEFINE_integer('instrumental_iter', 20, 'number of iteration for instrumental function')
 flags.DEFINE_integer('value_iter', 10, 'number of iteration for value function')
-
 
 flags.DEFINE_integer('batch_size', 2000, 'Batch size.')
 flags.DEFINE_integer('evaluate_every', 1, 'Evaluation period.')
@@ -107,19 +103,13 @@ def main(_):
     learner_counter = counting.Counter(counter, prefix='learner')
 
     # The learner updates the parameters (and initializes them).
-    learner = DFIVLearner(
+    learner = KIVLearner(
         value_func=value_func,
         instrumental_feature=instrumental_feature,
         policy_net=target_policy_net,
         discount=problem_config["discount"],
-        value_learning_rate=FLAGS.value_learning_rate,
-        instrumental_learning_rate=FLAGS.instrumental_learning_rate,
         stage1_reg=FLAGS.stage1_reg,
         stage2_reg=FLAGS.stage2_reg,
-        value_reg = FLAGS.value_reg,
-        instrumental_reg=FLAGS.instrumental_reg,
-        instrumental_iter=FLAGS.instrumental_iter,
-        value_iter=FLAGS.value_iter,
         dataset=dataset,
         counter=learner_counter)
 
