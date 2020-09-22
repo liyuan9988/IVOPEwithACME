@@ -40,10 +40,12 @@ def cal_mse(value_func, policy_net, environment, mse_samples, discount):
             print(value_func(current_obs, action).numpy().squeeze())
         mse = mse + mse_one.numpy()
         sample_count += 1
-    return mse / mse_samples
+    return mse.squeeze() / mse_samples
 
 
-def ope_evaluation(value_func, policy_net, environment, logger, num_init_samples, mse_samples=0, discount=0.99):
+def ope_evaluation(value_func, policy_net, environment, logger,
+                   num_init_samples, mse_samples=0, discount=0.99,
+                   counter=None):
     """Run OPE evaluation."""
     mse = -1
     if mse_samples > 0:
@@ -62,4 +64,7 @@ def ope_evaluation(value_func, policy_net, environment, logger, num_init_samples
         'Q0_mean': np.mean(q_0s),
         'Q0_std_err': np.std(q_0s, ddof=0) / np.sqrt(len(q_0s)),
     }
+    if counter is not None:
+        counts = counter.increment(steps=1)
+        results.update(counts)
     logger.write(results)
