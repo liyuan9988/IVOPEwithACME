@@ -66,12 +66,12 @@ def main(_):
             'run_id': 0
         },
         'target_policy_param': {
-            'env_noise_level': 0.0,
+            'env_noise_level': 0.2,
             'policy_noise_level': 0.0,
             'run_id': 1
         },
         'behavior_policy_param': {
-            'env_noise_level': 0.0,
+            'env_noise_level': 0.2,
             'policy_noise_level': 0.2,
             'run_id': 1
         },
