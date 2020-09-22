@@ -13,7 +13,9 @@ class InstrumentalFeature(snt.Module):
     def __init__(self, environment_spec):
         super(InstrumentalFeature, self).__init__()
         self._net = snt.Sequential([snt.Flatten(),
-                                    snt.nets.MLP([50, 50, 50], activate_final=True)])
+                                    snt.nets.MLP([150, 100, 50], activate_final=True)])
+        self.discount_pred = snt.Sequential([snt.Flatten(),
+                                             snt.nets.MLP([50, 50, 1])])
 
         self.n_action = environment_spec.actions.num_values
         self.flat = snt.Flatten()
@@ -21,7 +23,8 @@ class InstrumentalFeature(snt.Module):
     def __call__(self, obs, action, training=False):
         action_aug = tf.one_hot(action, depth=self.n_action)
         feature = self._net(tf.concat([self.flat(obs), action_aug], axis=1))
-        return feature
+        discount_pred = tf.sigmoid(self.discount_pred(tf.concat([self.flat(obs), action_aug], axis=1)))
+        return feature * discount_pred
 
 
 class ValueFeature(snt.Module):
