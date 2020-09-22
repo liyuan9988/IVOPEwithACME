@@ -76,10 +76,12 @@ def load_offline_bsuite_dataset(
         num_shards: int = 1,
         num_threads: int = 1,
         batch_size: int = 2,
-        single_precision_wrapper: bool = True) -> Tuple[tf.data.Dataset,
+        single_precision_wrapper: bool = True,
+        shuffle: bool = True) -> Tuple[tf.data.Dataset,
                                                         dm_env.Environment]:
     """Load bsuite offline dataset."""
     # Data file path format: {path}-?????-of-{num_shards:05d}
+    # The dataset is not deterministic and not repeated if shuffle = False.
     environment = bsuite.load_from_id(bsuite_id)
     if single_precision_wrapper:
         environment = single_precision.SinglePrecisionWrapper(environment)
@@ -90,6 +92,7 @@ def load_offline_bsuite_dataset(
                                              batch_size=batch_size,
                                              num_shards=num_shards,
                                              shuffle_buffer_size=10,
+                                             shuffle=shuffle,
                                              **params)
     return dataset, environment
 
