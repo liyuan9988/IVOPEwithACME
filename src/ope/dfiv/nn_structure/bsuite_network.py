@@ -13,15 +13,18 @@ class InstrumentalFeature(snt.Module):
     def __init__(self, environment_spec):
         super(InstrumentalFeature, self).__init__()
         self._net = snt.Sequential([snt.Flatten(),
-                                    snt.nets.MLP([50, 50, 50], activate_final=True)])
+                                    snt.nets.MLP([150, 100, 50], activate_final=True)])
+        self.discount_pred = snt.Sequential([snt.Flatten(),
+                                             snt.nets.MLP([50, 50, 1])])
 
         self.n_action = environment_spec.actions.num_values
-        self.last_flat = snt.Flatten()
+        self.flat = snt.Flatten()
 
-    def __call__(self, obs, action):
+    def __call__(self, obs, action, training=False):
         action_aug = tf.one_hot(action, depth=self.n_action)
-        feature = self._net(obs)
-        return self.last_flat(outer_prod(feature, action_aug))
+        feature = self._net(tf.concat([self.flat(obs), action_aug], axis=1))
+        discount_pred = tf.sigmoid(self.discount_pred(tf.concat([self.flat(obs), action_aug], axis=1)))
+        return feature * discount_pred
 
 
 class ValueFeature(snt.Module):
@@ -31,12 +34,13 @@ class ValueFeature(snt.Module):
         self._net = snt.Sequential([snt.Flatten(),
                                     snt.nets.MLP([50, 50], activate_final=True)])
         self.n_action = environment_spec.actions.num_values
-        self.last_flat = snt.Flatten()
+        self.flat = snt.Flatten()
 
-    def __call__(self, obs, action):
+
+    def __call__(self, obs, action, training=False):
         action_aug = tf.one_hot(action, depth=self.n_action)
-        feature = self._net(obs)
-        return self.last_flat(outer_prod(add_const_col(feature), action_aug))
+        feature = self._net(tf.concat([self.flat(obs), action_aug], axis=1))
+        return feature
 
 
 class ValueFunction(snt.Module):
@@ -46,10 +50,10 @@ class ValueFunction(snt.Module):
         self._feature = ValueFeature(environment_spec)
         self.n_action = environment_spec.actions.num_values
         self._weight = tf.Variable(
-          tf.zeros((51 * self.n_action, 1), dtype=tf.float32))
+          tf.zeros((51, 1), dtype=tf.float32))
 
-    def __call__(self, obs, action):
-        return tf.matmul(self._feature(obs, action), self._weight)
+    def __call__(self, obs, action, training=False):
+        return tf.matmul(add_const_col(self._feature(obs, action, training)), self._weight)
 
 
 def make_value_func_bsuite(environment_spec) -> Tuple[snt.Module, snt.Module]:
