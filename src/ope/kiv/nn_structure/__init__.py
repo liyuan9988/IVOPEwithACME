@@ -4,10 +4,11 @@ import sonnet as snt
 from typing import Tuple
 from .bsuite_network import make_value_func_bsuite
 
-def make_ope_networks(task_id: str, environment_spec: EnvironmentSpec) -> Tuple[snt.Module, snt.Module]:
+def make_ope_networks(task_id: str, environment_spec: EnvironmentSpec,
+                      n_component: int = 100, gamma: float = 10.0) -> Tuple[snt.Module, snt.Module]:
 
     if task_id.startswith("bsuite"):
-        value_func, instrumental_feature = make_value_func_bsuite(environment_spec)
+        value_func, instrumental_feature = make_value_func_bsuite(environment_spec, n_component=n_component, gamma=gamma)
     else:
         raise ValueError(f"task id {task_id} not known")
 
