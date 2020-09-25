@@ -10,12 +10,15 @@ from src.utils.tf_linear_reg_utils import outer_prod, add_const_col
 
 class InstrumentalFeature(snt.Module):
 
-    def __init__(self, environment_spec):
+    def __init__(self, environment_spec, instrumental_predict_terminating):
         super(InstrumentalFeature, self).__init__()
         self._net = snt.Sequential([snt.Flatten(),
                                     snt.nets.MLP([150, 100, 50], activate_final=True)])
-        self.discount_pred = snt.Sequential([snt.Flatten(),
-                                             snt.nets.MLP([50, 50, 1])])
+        if instrumental_predict_terminating:
+            self.discount_pred = snt.Sequential([snt.Flatten(),
+                                                 snt.nets.MLP([50, 50, 1])])
+        else:
+            self.discount_pred = None
 
         self.n_action = environment_spec.actions.num_values
         self.flat = snt.Flatten()
@@ -23,8 +26,11 @@ class InstrumentalFeature(snt.Module):
     def __call__(self, obs, action, training=False):
         action_aug = tf.one_hot(action, depth=self.n_action)
         feature = self._net(tf.concat([self.flat(obs), action_aug], axis=1))
-        discount_pred = tf.sigmoid(self.discount_pred(tf.concat([self.flat(obs), action_aug], axis=1)))
-        return feature * discount_pred
+        feature = add_const_col(feature)
+        if self.discount_pred is not None:
+            discount_pred = tf.sigmoid(self.discount_pred(tf.concat([self.flat(obs), action_aug], axis=1)))
+            feature = feature * discount_pred
+        return feature
 
 
 class ValueFeature(snt.Module):
@@ -56,7 +62,7 @@ class ValueFunction(snt.Module):
         return tf.matmul(add_const_col(self._feature(obs, action, training)), self._weight)
 
 
-def make_value_func_bsuite(environment_spec) -> Tuple[snt.Module, snt.Module]:
+def make_value_func_bsuite(environment_spec, instrumental_predict_terminating) -> Tuple[snt.Module, snt.Module]:
     value_function = ValueFunction(environment_spec)
-    instrumental_feature = InstrumentalFeature(environment_spec)
+    instrumental_feature = InstrumentalFeature(environment_spec, instrumental_predict_terminating)
     return value_function, instrumental_feature

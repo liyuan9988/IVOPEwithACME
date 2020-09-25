@@ -9,6 +9,7 @@ from acme.tf import utils as tf2_utils
 from acme.utils import counting
 from acme.utils import loggers
 import numpy as np
+import reverb
 import sonnet as snt
 import tensorflow as tf
 
@@ -32,6 +33,7 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
                  stage1_reg: float,
                  stage2_reg: float,
                  dataset: tf.data.Dataset,
+                 ignore_terminal: bool = False,
                  counter: counting.Counter = None,
                  logger: loggers.Logger = None,
                  checkpoint: bool = True):
@@ -45,6 +47,7 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
           stage1_reg: ridge regularizer for stage 1 regression
           stage2_reg: ridge regularizer for stage 2 regression
           dataset: dataset to learn from.
+          ignore_terminal: skip terminating states in stage 1 regression.
           counter: Counter object for (potentially distributed) counting.
           logger: Logger object for writing logs to.
           checkpoint: boolean indicating whether to checkpoint the learner.
@@ -56,6 +59,7 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
         self.stage1_reg = stage1_reg
         self.stage2_reg = stage2_reg
         self.discount = discount
+        self.ignore_terminal = ignore_terminal
 
         # Get an iterator over the dataset.
         self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
@@ -68,6 +72,9 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
 
         self.stage1_input = next(self._iterator)
         self.stage2_input = next(self._iterator)
+        if isinstance(self.stage1_input, reverb.ReplaySample):
+            self.stage1_input = self.stage1_input.data
+            self.stage2_input = self.stage2_input.data
 
         self._variables = [
             value_func.trainable_variables,
@@ -91,7 +98,7 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
         # Pull out the data needed for updates/priorities.
 
 
-        o_tm1, a_tm1, r_t, d_t, o_t, _ = self.stage1_input
+        # o_tm1, a_tm1, r_t, d_t, o_t, _ = self.stage1_input
         stage1_loss, stage2_loss = self.update_final_weight(self.stage1_input, self.stage2_input)
         self._num_steps.assign_add(1)
 
@@ -108,6 +115,8 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
         discount_1st = tf.expand_dims(discount_1st, axis=1)
 
         instrumental_feature_1st = self.instrumental_feature(obs=current_obs_1st, action=action_1st)
+        if self.ignore_terminal:
+            instrumental_feature_1st = discount_1st * instrumental_feature_1st
         instrumental_feature_2nd = self.instrumental_feature(obs=current_obs_2nd, action=action_2nd)
 
         target_1st = discount_1st * self.value_feature(obs=next_obs_1st, action=next_action_1st)
