@@ -11,7 +11,7 @@ from src.utils.tf_linear_reg_utils import outer_prod, add_const_col
 @snt.allow_empty_variables
 class RandomFourierFeature(snt.Module):
 
-    def __init__(self, n_component, gamma=1.0):
+    def __init__(self, n_component, gamma):
         super(RandomFourierFeature, self).__init__()
         self.n_components = n_component
         self.gamma = gamma
@@ -32,50 +32,47 @@ class RandomFourierFeature(snt.Module):
 @snt.allow_empty_variables
 class InstrumentalFeature(snt.Module):
 
-    def __init__(self, environment_spec):
+    def __init__(self, environment_spec, n_component, gamma):
         super(InstrumentalFeature, self).__init__()
-        self.flat = snt.Flatten()
-        self.rff = RandomFourierFeature(n_component=100, gamma=10)
+        self.rff = RandomFourierFeature(n_component=n_component, gamma=gamma)
         self.n_action = environment_spec.actions.num_values
-        self.last_flat = snt.Flatten()
+        self.flat = snt.Flatten()
 
     def __call__(self, obs, action):
         action_aug = tf.one_hot(action, depth=self.n_action)
-        feature = self.rff(self.flat(obs))
-        return self.last_flat(outer_prod(feature, action_aug))
+        inputs = tf.concat([self.flat(obs), action_aug], axis=1)
+        return self.rff(inputs)
 
 
 @snt.allow_empty_variables
 class ValueFeature(snt.Module):
 
-    def __init__(self, environment_spec):
+    def __init__(self, environment_spec, n_component, gamma):
         super(ValueFeature, self).__init__()
-        self._net = snt.Sequential([snt.Flatten(),
-                                    RandomFourierFeature(n_component=100, gamma=10)])
+        self._net = RandomFourierFeature(n_component=n_component, gamma=gamma)
         self.n_action = environment_spec.actions.num_values
-        self.last_flat = snt.Flatten()
+        self.flat = snt.Flatten()
 
     def __call__(self, obs, action):
         action_aug = tf.one_hot(action, depth=self.n_action)
-        feature = self._net(obs)
-        return self.last_flat(outer_prod(feature, action_aug))
+        inputs = tf.concat([self.flat(obs), action_aug], axis=1)
+        return self._net(inputs)
 
 
 @snt.allow_empty_variables
 class ValueFunction(snt.Module):
 
-    def __init__(self, environment_spec):
+    def __init__(self, environment_spec, n_component, gamma):
         super(ValueFunction, self).__init__()
-        self._feature = ValueFeature(environment_spec)
+        self._feature = ValueFeature(environment_spec, n_component=n_component, gamma=gamma)
         self.n_action = environment_spec.actions.num_values
-        self._weight = tf.Variable(
-            tf.zeros((100 * self.n_action, 1), dtype=tf.float32))
+        self._weight = tf.Variable(tf.zeros((n_component, 1), dtype=tf.float32))
 
     def __call__(self, obs, action):
         return tf.matmul(self._feature(obs, action), self._weight)
 
 
-def make_value_func_bsuite(environment_spec) -> Tuple[snt.Module, snt.Module]:
-    value_function = ValueFunction(environment_spec)
-    instrumental_feature = InstrumentalFeature(environment_spec)
+def make_value_func_bsuite(environment_spec, n_component=100, gamma=10.0) -> Tuple[snt.Module, snt.Module]:
+    value_function = ValueFunction(environment_spec, n_component=n_component, gamma=gamma)
+    instrumental_feature = InstrumentalFeature(environment_spec, n_component=n_component, gamma=gamma)
     return value_function, instrumental_feature
