@@ -84,7 +84,7 @@ def main(_):
 
     # Create the networks to optimize.
     value_func, instrumental_feature = make_ope_networks(
-        problem_config['task_name'], environment_spec)
+        problem_config['task_name'], environment_spec, instrumental_predict_terminating=False)
 
     # Load pretrained target policy network.
     target_policy_net = load_policy_net(task_name=problem_config['task_name'],
