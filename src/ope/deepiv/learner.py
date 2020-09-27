@@ -1,4 +1,5 @@
 # Lint as: python3
+# pylint: disable=bad-indentation,line-too-long
 """DeepIV Learner implementation."""
 
 from typing import Dict, List
@@ -9,6 +10,7 @@ from acme.tf import utils as tf2_utils
 from acme.utils import counting
 from acme.utils import loggers
 import numpy as np
+import reverb
 import sonnet as snt
 import tensorflow as tf
 
@@ -33,7 +35,6 @@ class DeepIVLearner(acme.Learner, tf2_savers.TFSaveable):
                  density_learning_rate: float,
                  n_sampling: int,
                  density_iter: int,
-                 value_iter: int,
                  dataset: tf.data.Dataset,
                  counter: counting.Counter = None,
                  logger: loggers.Logger = None,
@@ -49,7 +50,6 @@ class DeepIVLearner(acme.Learner, tf2_savers.TFSaveable):
           density_learning_rate: learning rate for the mixture_density update.
           n_sampling: number of samples generated in stage 2,
           density_iter: number of iteration for mixture_density function,
-          value_iter: number of iteration for value function,
           dataset: dataset to learn from.
           counter: Counter object for (potentially distributed) counting.
           logger: Logger object for writing logs to.
@@ -60,7 +60,6 @@ class DeepIVLearner(acme.Learner, tf2_savers.TFSaveable):
         self._logger = logger or loggers.TerminalLogger('learner', time_delta=1.)
 
         self.density_iter = density_iter
-        self.value_iter = value_iter
         self.n_sampling = n_sampling
         self.discount = discount
 
@@ -92,47 +91,81 @@ class DeepIVLearner(acme.Learner, tf2_savers.TFSaveable):
         stage1_loss = None
         stage2_loss = None
         # Pull out the data needed for updates/priorities.
-        for i in range(self.density_iter):
-            inputs = next(self._iterator)
-            o_tm1, a_tm1, r_t, d_t, o_t, _ = inputs.data
+        if self._num_steps < self.density_iter:
+            sample = next(self._iterator)
+            if isinstance(sample, reverb.ReplaySample):
+              sample = sample.data
+            o_tm1, a_tm1, r_t, d_t, o_t = sample[:5]
             stage1_loss = self.update_density(o_tm1, a_tm1, r_t, d_t, o_t)
+            stage2_loss = tf.constant(0.0)
+        else:
+            stage1_loss = tf.constant(0.0)
+            sample = next(self._iterator)
+            if isinstance(sample, reverb.ReplaySample):
+              sample = sample.data
+            o_tm1, a_tm1, r_t = sample[:3]
+            stage2_loss = self.update_value(o_tm1, a_tm1, r_t)
 
-        for i in range(self.value_iter):
-            inputs = next(self._iterator)
-            o_tm1, a_tm1, r_t, d_t, o_t, _ = inputs.data
-            stage2_loss = self.update_value(o_tm1, a_tm1, r_t, d_t, o_t)
+        self._num_steps.assign_add(1)
 
-        # Compute the global norm of the gradients for logging.
-        fetches = {'stage1_loss': stage1_loss, "stage2_loss": stage2_loss}
+        fetches = {'stage1_loss': stage1_loss, 'stage2_loss': stage2_loss,
+                   'num_steps': tf.convert_to_tensor(self._num_steps)}
 
         return fetches
 
     def update_density(self, current_obs, action, reward, discount, next_obs):
         target = tf2_utils.batch_concat(next_obs)
         with tf.GradientTape() as tape:
-            density = self.mixture_density(current_obs, action)
-            loss = tf.reduce_mean(-density.log_prob(target))
+            # density = self.mixture_density(current_obs, action)
+            obs_distr, discount_distr = self.mixture_density(current_obs, action)
+            discount_log_prob = discount_distr.log_prob(discount)
+            obs_log_prob = obs_distr.log_prob(target)
+            # Ignore the obs distr loss if discount == 0.
+            loss = tf.reduce_mean(-discount_log_prob - obs_log_prob * discount)
+            # loss = tf.reduce_mean(-density.log_prob(target))
 
         gradient = tape.gradient(loss, self.mixture_density.trainable_variables)
         self._mixture_density_optimizer.apply(gradient, self.mixture_density.trainable_variables)
 
         return loss
 
-    def obtain_sampled_value_function(self, current_obs, action):
-        res_list = []
-        for i in range(self.n_sampling):
-            sampled_value = self.mixture_density.obtain_sampled_value_function(current_obs, action, self.policy,
-                                                                               self.value_func)
-            res_list.append(sampled_value)
-        return tf.reduce_mean(tf.concat(res_list, axis=0), axis=0)
+    def obtain_one_sampled_value_function(self, current_obs, action):
+        obs_distr, discount_distr = self.mixture_density(current_obs, action)
+        sampled_next_obs = obs_distr.sample()
+        sampled_next_obs = tf.reshape(sampled_next_obs, current_obs.shape)
 
-    def update_value(self, current_obs, action, reward, discount, next_obs):
+        sampled_action = self.policy(sampled_next_obs)
+
+        sampled_value = self.value_func(sampled_next_obs, sampled_action)
+
+        sampled_discount = discount_distr.sample()
+        if sampled_discount.shape != sampled_value.shape:
+            raise ValueError(
+                f'Unmatched shape sampled_discount.shape '
+                f'({sampled_discount.shape}) != value.shape ({sampled_value.shape})')
+        sampled_discount = tf.cast(sampled_discount, sampled_value.dtype)
+        sampled_value = sampled_discount * sampled_value
+        return sampled_value
+
+    def obtain_sampled_value_function(self, current_obs, action):
+        # res_list = []
+        # for i in range(self.n_sampling):
+        #     sampled_value = self.mixture_density.obtain_sampled_value_function(current_obs, action, self.policy,
+        #                                                                        self.value_func)
+        #     res_list.append(sampled_value)
+        # return tf.reduce_mean(tf.concat(res_list, axis=0), axis=0)
+        sampled_value = 0.
+        for _ in range(self.n_sampling):
+            sampled_value += self.obtain_one_sampled_value_function(
+                current_obs, action)
+        return sampled_value / self.n_sampling
+
+    def update_value(self, current_obs, action, reward):
         mse = tf.keras.losses.MeanSquaredError()
         with tf.GradientTape() as tape:
-            next_value = self.mixture_density.obtain_sampled_value_function(current_obs, action, self.policy,
-                                                                            self.value_func)
+            next_value = self.obtain_sampled_value_function(current_obs, action)
             current_value = self.value_func(current_obs, action)
-            pred = current_value - discount * next_value * self.discount
+            pred = current_value - self.discount * next_value
             loss = mse(y_pred=pred, y_true=reward)
 
         gradient = tape.gradient(loss, self.value_func.trainable_variables)
