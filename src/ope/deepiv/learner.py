@@ -96,10 +96,13 @@ class DeepIVLearner(acme.Learner, tf2_savers.TFSaveable):
             if isinstance(sample, reverb.ReplaySample):
               sample = sample.data
             o_tm1, a_tm1, r_t, d_t, o_t = sample[:5]
-            stage1_loss = self.update_density(o_tm1, a_tm1, r_t, d_t, o_t)
+            stage1_loss, obs_loss, discount_loss = self.update_density(
+                o_tm1, a_tm1, r_t, d_t, o_t)
             stage2_loss = tf.constant(0.0)
         else:
             stage1_loss = tf.constant(0.0)
+            obs_loss = tf.constant(0.0)
+            discount_loss = tf.constant(0.0)
             sample = next(self._iterator)
             if isinstance(sample, reverb.ReplaySample):
               sample = sample.data
@@ -109,6 +112,7 @@ class DeepIVLearner(acme.Learner, tf2_savers.TFSaveable):
         self._num_steps.assign_add(1)
 
         fetches = {'stage1_loss': stage1_loss, 'stage2_loss': stage2_loss,
+                   'obs_loss': obs_loss, 'discount_loss': discount_loss,
                    'num_steps': tf.convert_to_tensor(self._num_steps)}
 
         return fetches
@@ -118,16 +122,20 @@ class DeepIVLearner(acme.Learner, tf2_savers.TFSaveable):
         with tf.GradientTape() as tape:
             # density = self.mixture_density(current_obs, action)
             obs_distr, discount_distr = self.mixture_density(current_obs, action)
-            discount_log_prob = discount_distr.log_prob(discount)
+
             obs_log_prob = obs_distr.log_prob(target)
-            # Ignore the obs distr loss if discount == 0.
-            loss = tf.reduce_mean(-discount_log_prob - obs_log_prob * discount)
+            obs_loss = tf.reduce_mean(-obs_log_prob)
+
+            discount_log_prob = discount_distr.log_prob(discount)
+            discount_loss = tf.reduce_mean(-discount_log_prob)
+
+            loss = obs_loss + discount_loss
             # loss = tf.reduce_mean(-density.log_prob(target))
 
         gradient = tape.gradient(loss, self.mixture_density.trainable_variables)
         self._mixture_density_optimizer.apply(gradient, self.mixture_density.trainable_variables)
 
-        return loss
+        return loss, obs_loss, discount_loss
 
     def obtain_one_sampled_value_function(self, current_obs, action):
         obs_distr, discount_distr = self.mixture_density(current_obs, action)
