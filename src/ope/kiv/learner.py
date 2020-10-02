@@ -34,7 +34,6 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
                  stage1_reg: float,
                  stage2_reg: float,
                  dataset: tf.data.Dataset,
-                 ignore_terminal: bool = False,
                  counter: counting.Counter = None,
                  logger: loggers.Logger = None,
                  checkpoint: bool = True):
@@ -48,7 +47,6 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
           stage1_reg: ridge regularizer for stage 1 regression
           stage2_reg: ridge regularizer for stage 2 regression
           dataset: dataset to learn from.
-          ignore_terminal: skip terminating states in stage 1 regression.
           counter: Counter object for (potentially distributed) counting.
           logger: Logger object for writing logs to.
           checkpoint: boolean indicating whether to checkpoint the learner.
@@ -60,7 +58,6 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
         self.stage1_reg = stage1_reg
         self.stage2_reg = stage2_reg
         self.discount = discount
-        self.ignore_terminal = ignore_terminal
 
         # Get an iterator over the dataset.
         self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
@@ -141,9 +138,6 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
 
         instrumental_feature_1st = self.instrumental_feature(obs=current_obs_1st, action=action_1st)
         instrumental_feature_2nd = self.instrumental_feature(obs=current_obs_2nd, action=action_2nd)
-        if self.ignore_terminal:
-            instrumental_feature_1st = discount_1st * instrumental_feature_1st
-            instrumental_feature_2nd = discount_2nd * instrumental_feature_2nd
 
         target_1st = discount_1st * self.value_feature(obs=next_obs_1st, action=next_action_1st)
         target_2nd = discount_2nd * self.value_feature(obs=next_obs_2nd, action=next_action_2nd)

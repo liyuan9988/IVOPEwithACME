@@ -39,16 +39,14 @@ flags.DEFINE_enum('task_class', 'control_suite',
 flags.DEFINE_string('target_policy_path', '', 'Path to target policy snapshot')
 
 # Agent flags
-flags.DEFINE_float('value_learning_rate', 2e-5, 'learning rate for the treatment_net update')
-flags.DEFINE_float('instrumental_learning_rate', 2e-5, 'learning rate for the instrumental_net update')
-flags.DEFINE_float('stage1_reg', 1e-3, 'ridge regularizer for stage 1 regression')
-flags.DEFINE_float('stage2_reg', 1e-3, 'ridge regularizer for stage 2 regression')
-flags.DEFINE_integer('instrumental_iter', 20, 'number of iteration for instrumental function')
-flags.DEFINE_integer('value_iter', 10, 'number of iteration for value function')
+flags.DEFINE_float('stage1_reg', 1e-5, 'ridge regularizer for stage 1 regression')
+flags.DEFINE_float('stage2_reg', 1e-5, 'ridge regularizer for stage 2 regression')
+flags.DEFINE_integer('n_component', 512, 'Number of random Fourier features.')
+flags.DEFINE_float('gamma', None, 'Gamma in Gaussian kernel.')
 
-flags.DEFINE_integer('batch_size', 2000, 'Batch size.')
-flags.DEFINE_integer('evaluate_every', 1, 'Evaluation period.')
 flags.DEFINE_integer('evaluate_init_samples', 100, 'Number of initial samples for evaluation.')
+
+flags.DEFINE_integer('max_steps', 1, 'Max number of steps.')
 
 FLAGS = flags.FLAGS
 
@@ -71,6 +69,7 @@ def main(_):
             'policy_noise_level': 0.2,
             'run_id': 1
         },
+        'behavior_dataset_size': 180000,
         'discount': 0.99,
     }
     _, environment = load_data_and_env(
@@ -78,9 +77,17 @@ def main(_):
         dataset_path=FLAGS.dataset_path)
     environment_spec = specs.make_environment_spec(environment)
 
+    task_gamma_map = {
+          'bsuite_catch': 0.25,
+          'bsuite_mountain_car': 0.5,
+          'bsuite_cartpole': 0.44,
+    }
+    gamma = FLAGS.gamma or task_gamma_map[problem_config['task_name']]
+
     # Create the networks to optimize.
     value_func, instrumental_feature = make_ope_networks(
-        problem_config['task_name'], environment_spec)
+        problem_config['task_name'], environment_spec,
+        n_component=FLAGS.n_component, gamma=gamma)
 
     # Load pretrained target policy network.
     target_policy_net = load_policy_net(task_name=problem_config['task_name'],
@@ -88,16 +95,19 @@ def main(_):
                                         environment_spec=environment_spec,
                                         dataset_path=FLAGS.dataset_path)
 
-    behavior_policy_net = load_policy_net(task_name=problem_config['task_name'],
-                                          params=problem_config['behavior_policy_param'],
-                                          environment_spec=environment_spec,
-                                          dataset_path=FLAGS.dataset_path)
+    with tf.device('CPU'):
+        behavior_policy_net = load_policy_net(task_name=problem_config['task_name'],
+                                              params=problem_config['behavior_policy_param'],
+                                              environment_spec=environment_spec,
+                                              dataset_path=FLAGS.dataset_path)
 
     print("start generating transitions")
     dataset = generate_train_data(behavior_policy_net, environment, 180000)
+    dataset = generate_train_data(
+        behavior_policy_net, environment,
+        problem_config['behavior_dataset_size'])
     print("end generating transitions")
-    # dataset = dataset.repeat().batch(1000)
-    dataset = dataset.batch(90000)
+    dataset = dataset.batch(problem_config['behavior_dataset_size'] // 2)
 
     counter = counting.Counter()
     learner_counter = counting.Counter(counter, prefix='learner')
@@ -116,8 +126,7 @@ def main(_):
     eval_logger = loggers.TerminalLogger('eval')
 
     while True:
-        for _ in range(FLAGS.evaluate_every):
-            learner.step()
+        learner.step()
         ope_evaluation(value_func=value_func,
                        policy_net=target_policy_net,
                        environment=environment,
@@ -125,6 +134,8 @@ def main(_):
                        num_init_samples=FLAGS.evaluate_init_samples,
                        mse_samples=18,
                        discount=problem_config["discount"])
+        if learner.state['num_steps'] >= FLAGS.max_steps:
+            break
 
 
 if __name__ == '__main__':
