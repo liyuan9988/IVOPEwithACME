@@ -40,7 +40,6 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
                  instrumental_iter: int,
                  value_iter: int,
                  dataset: tf.data.Dataset,
-                 ignore_terminal: bool = False,
                  d_tm1_weight: float = 1.0,
                  counter: counting.Counter = None,
                  logger: loggers.Logger = None,
@@ -59,7 +58,7 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
           instrumental_iter: number of iteration for instrumental net
           value_iter: number of iteration for value function,
           dataset: dataset to learn from.
-          ignore_terminal: skip terminating states in stage 1 regression.
+          d_tm1_weight: weights for terminal state transitions.
           counter: Counter object for (potentially distributed) counting.
           logger: Logger object for writing logs to.
           checkpoint: boolean indicating whether to checkpoint the learner.
@@ -75,7 +74,6 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         self.discount = discount
         self.value_reg = value_reg
         self.instrumental_reg = instrumental_reg
-        self.ignore_terminal = ignore_terminal
         self.d_tm1_weight = d_tm1_weight
 
         # Get an iterator over the dataset.
@@ -140,8 +138,6 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         l2 = snt.regularizers.L2(self.instrumental_reg)
         with tf.GradientTape() as tape:
             feature = self.instrumental_feature(obs=current_obs, action=action, training=True)
-            if self.ignore_terminal:
-                feature = discount * feature
             feature = d_tm1 * feature
             loss = linear_reg_loss(target, feature, self.stage1_reg)
             loss = loss + l2(self.instrumental_feature.trainable_variables)
@@ -162,8 +158,6 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
 
         instrumental_feature_1st = self.instrumental_feature(obs=current_obs_1st, action=action_1st,
                                                              training=False)
-        if self.ignore_terminal:
-            instrumental_feature_1st = discount_1st * instrumental_feature_1st
         instrumental_feature_1st = d_tm1_1st * instrumental_feature_1st
         instrumental_feature_2nd = self.instrumental_feature(obs=current_obs_2nd, action=action_2nd,
                                                              training=False)
@@ -198,8 +192,6 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
 
         instrumental_feature_1st = self.instrumental_feature(obs=current_obs_1st, action=action_1st,
                                                              training=False)
-        if self.ignore_terminal:
-            instrumental_feature_1st = discount_1st * instrumental_feature_1st
         instrumental_feature_1st = d_tm1_1st * instrumental_feature_1st
         instrumental_feature_2nd = self.instrumental_feature(obs=current_obs_2nd, action=action_2nd,
                                                              training=False)

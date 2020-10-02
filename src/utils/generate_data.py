@@ -6,9 +6,9 @@ import tensorflow as tf
 
 
 def generate_train_data(policy_net, environment, n_samples,
-                        infinite_horizon=False,
-                        repeat_terminal=1,
-                        ignore_d_tm1=False):
+                        include_terminal=False,  # Include terminal absorbing state.
+                        ignore_d_tm1=False  # Set d_tm1 as constant 1.0 if True.
+                        ):
     with tf.device('CPU'):
         sample_count = 0
         actor = actors.FeedForwardActor(policy_network=policy_net)
@@ -29,7 +29,7 @@ def generate_train_data(policy_net, environment, n_samples,
             next_obs = timestep.observation
             reward = timestep.reward
             discount = np.array(1.0, dtype=np.float32)
-            if timestep.last() and not infinite_horizon:
+            if timestep.last() and not include_terminal:
                 discount = np.array(0.0, dtype=np.float32)
 
             current_obs_list.append(tf2_utils.add_batch_dim(current_obs))
@@ -40,7 +40,7 @@ def generate_train_data(policy_net, environment, n_samples,
             nonterminal_list.append(tf2_utils.add_batch_dim(np.array(1.0, dtype=np.float32)))
 
             if timestep.last():
-                if infinite_horizon:
+                if include_terminal:
                     # Make another transition tuple from s, a -> s, a with 0 reward.
                     current_obs = next_obs
                     # action = actor.select_action(current_obs)
@@ -53,16 +53,15 @@ def generate_train_data(policy_net, environment, n_samples,
                     else:
                         d_tm1 = np.array(0.0, dtype=np.float32)
 
-                    for _ in range(repeat_terminal):
-                        for i in range(environment.action_spec().num_values):
-                            action_ = np.array(i, dtype=action.dtype).reshape(action.shape)
+                    for i in range(environment.action_spec().num_values):
+                        action_ = np.array(i, dtype=action.dtype).reshape(action.shape)
 
-                            current_obs_list.append(tf2_utils.add_batch_dim(current_obs))
-                            action_list.append(tf2_utils.add_batch_dim(action_))
-                            reward_list.append(tf2_utils.add_batch_dim(reward))
-                            discount_list.append(tf2_utils.add_batch_dim(discount))
-                            next_obs_list.append(tf2_utils.add_batch_dim(next_obs))
-                            nonterminal_list.append(tf2_utils.add_batch_dim(d_tm1))
+                        current_obs_list.append(tf2_utils.add_batch_dim(current_obs))
+                        action_list.append(tf2_utils.add_batch_dim(action_))
+                        reward_list.append(tf2_utils.add_batch_dim(reward))
+                        discount_list.append(tf2_utils.add_batch_dim(discount))
+                        next_obs_list.append(tf2_utils.add_batch_dim(next_obs))
+                        nonterminal_list.append(tf2_utils.add_batch_dim(d_tm1))
 
                 timestep = environment.reset()
                 actor.observe_first(timestep)

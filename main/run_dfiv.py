@@ -39,20 +39,26 @@ flags.DEFINE_enum('task_class', 'control_suite',
 flags.DEFINE_string('target_policy_path', '', 'Path to target policy snapshot')
 
 # Agent flags
-flags.DEFINE_float('value_learning_rate', 2e-5, 'learning rate for the treatment_net update')
-flags.DEFINE_float('instrumental_learning_rate', 2e-5, 'learning rate for the instrumental_net update')
-flags.DEFINE_float('stage1_reg', 1e-3, 'ridge regularizer for stage 1 regression')
-flags.DEFINE_float('stage2_reg', 1e-3, 'ridge regularizer for stage 2 regression')
-flags.DEFINE_float('instrumental_reg', 1e-3, 'ridge regularizer instrumental')
-flags.DEFINE_float('value_reg', 1e-3, 'ridge regularizer for value_reg')
+flags.DEFINE_float('value_learning_rate', 1e-4, 'learning rate for the treatment_net update')
+flags.DEFINE_float('instrumental_learning_rate', 1e-3, 'learning rate for the instrumental_net update')
+flags.DEFINE_float('stage1_reg', 1e-5, 'ridge regularizer for stage 1 regression')
+flags.DEFINE_float('stage2_reg', 1e-5, 'ridge regularizer for stage 2 regression')
+flags.DEFINE_float('instrumental_reg', 1e-5, 'ridge regularizer instrumental')
+flags.DEFINE_float('value_reg', 1e-5, 'ridge regularizer for value_reg')
 
-flags.DEFINE_integer('instrumental_iter', 20, 'number of iteration for instrumental function')
+flags.DEFINE_integer('instrumental_iter', 10, 'number of iteration for instrumental function')
 flags.DEFINE_integer('value_iter', 10, 'number of iteration for value function')
 
 
-flags.DEFINE_integer('batch_size', 2000, 'Batch size.')
 flags.DEFINE_integer('evaluate_every', 1, 'Evaluation period.')
 flags.DEFINE_integer('evaluate_init_samples', 100, 'Number of initial samples for evaluation.')
+
+flags.DEFINE_integer('max_steps', 100000, 'Max number of steps.')
+flags.DEFINE_float('d_tm1_weight', 0.01,  # 0.01 for cartpole, 0.03 for catch and mountain_car.
+                   'Weights of terminal states.')
+flags.DEFINE_boolean('include_terminal', False, 'Generate dataset with terminal absorbing state.')
+flags.DEFINE_boolean('ignore_d_tm1', False, 'Always set d_tm1 = 1.0 if True.')
+
 
 FLAGS = flags.FLAGS
 
@@ -75,6 +81,7 @@ def main(_):
             'policy_noise_level': 0.2,
             'run_id': 1
         },
+        'behavior_dataset_size': 180000,
         'discount': 0.99,
     }
     _, environment = load_data_and_env(
@@ -84,7 +91,8 @@ def main(_):
 
     # Create the networks to optimize.
     value_func, instrumental_feature = make_ope_networks(
-        problem_config['task_name'], environment_spec, instrumental_predict_terminating=False)
+        problem_config['task_name'], environment_spec)
+
 
     # Load pretrained target policy network.
     target_policy_net = load_policy_net(task_name=problem_config['task_name'],
@@ -92,16 +100,20 @@ def main(_):
                                         environment_spec=environment_spec,
                                         dataset_path=FLAGS.dataset_path)
 
-    behavior_policy_net = load_policy_net(task_name=problem_config['task_name'],
-                                          params=problem_config['behavior_policy_param'],
-                                          environment_spec=environment_spec,
-                                          dataset_path=FLAGS.dataset_path)
+    with tf.device('CPU'):
+        behavior_policy_net = load_policy_net(task_name=problem_config['task_name'],
+                                              params=problem_config['behavior_policy_param'],
+                                              environment_spec=environment_spec,
+                                              dataset_path=FLAGS.dataset_path)
 
     print("start generating transitions")
-    dataset = generate_train_data(behavior_policy_net, environment, 180000)
+    dataset = generate_train_data(
+        behavior_policy_net, environment,
+        problem_config['behavior_dataset_size'],
+        include_terminal=FLAGS.include_terminal,
+        ignore_d_tm1=FLAGS.ignore_d_tm1)
     print("end generating transitions")
-    # dataset = dataset.repeat().batch(1000)
-    dataset = dataset.batch(90000)
+    dataset = dataset.batch(problem_config['behavior_dataset_size'] // 2)
 
     counter = counting.Counter()
     learner_counter = counting.Counter(counter, prefix='learner')
@@ -111,16 +123,17 @@ def main(_):
         value_func=value_func,
         instrumental_feature=instrumental_feature,
         policy_net=target_policy_net,
-        discount=problem_config["discount"],
+        discount=problem_config['discount'],
         value_learning_rate=FLAGS.value_learning_rate,
         instrumental_learning_rate=FLAGS.instrumental_learning_rate,
         stage1_reg=FLAGS.stage1_reg,
         stage2_reg=FLAGS.stage2_reg,
-        value_reg = FLAGS.value_reg,
+        value_reg=FLAGS.value_reg,
         instrumental_reg=FLAGS.instrumental_reg,
         instrumental_iter=FLAGS.instrumental_iter,
         value_iter=FLAGS.value_iter,
         dataset=dataset,
+        d_tm1_weight=FLAGS.d_tm1_weight,
         counter=learner_counter)
 
     eval_logger = loggers.TerminalLogger('eval')
@@ -135,6 +148,8 @@ def main(_):
                        num_init_samples=FLAGS.evaluate_init_samples,
                        mse_samples=18,
                        discount=problem_config["discount"])
+        if learner.state['num_steps'] >= FLAGS.max_steps:
+            break
 
 
 if __name__ == '__main__':
