@@ -76,6 +76,7 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         self.value_reg = value_reg
         self.instrumental_reg = instrumental_reg
         self.d_tm1_weight = d_tm1_weight
+        self.ignore_terminate_confounding = True
 
         # Get an iterator over the dataset.
         self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
@@ -168,6 +169,7 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
     @tf.function
     def cal_value_weight(self, predicted_feature, current_feature, stage2_input):
         current_obs_2nd, action_2nd, reward_2nd, discount_2nd, _, _, _ = stage2_input[:7]
+        discount_2nd = tf.expand_dims(discount_2nd, axis=1)
         feature = current_feature - discount_2nd * self.discount * predicted_feature
         nData, nDim = feature.shape
         nData = tf.cast(tf.shape(feature)[0], dtype=tf.float32)
@@ -194,6 +196,7 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         current_obs_2nd, action_2nd, reward_2nd, discount_2nd, _, _, _ = stage2_input[:7]
         next_action_1st = self.policy(next_obs_1st)
         discount_1st = tf.expand_dims(discount_1st, axis=1)
+        discount_2nd = tf.expand_dims(discount_2nd, axis=1)
 
         instrumental_feature_1st = self.instrumental_feature(obs=current_obs_1st, action=action_1st,
                                                              training=False) * discount_1st
@@ -220,6 +223,7 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         current_obs_2nd, action_2nd, reward_2nd, discount_2nd, _, _, _ = stage2_input[:7]
         next_action_1st = self.policy(next_obs_1st)
         discount_1st = tf.expand_dims(discount_1st, axis=1)
+        discount_2nd = tf.expand_dims(discount_2nd, axis=1)
 
         instrumental_feature_1st = self.instrumental_feature(obs=current_obs_1st, action=action_1st,
                                                              training=False) * discount_1st

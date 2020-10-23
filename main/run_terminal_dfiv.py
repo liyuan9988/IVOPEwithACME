@@ -25,7 +25,7 @@ ROOT_PATH = pathlib.Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT_PATH))
 
 from src.load_data import load_policy_net, load_data_and_env  # noqa: E402
-from src.ope.teminal_dfiv import TerminalDFIVLearner, make_ope_networks  # noqa: E402
+from src.ope.terminal_dfiv import TerminalDFIVLearner, make_ope_networks  # noqa: E402
 from src.utils import ope_evaluation, generate_train_data
 
 flags.DEFINE_string(
@@ -66,7 +66,7 @@ FLAGS = flags.FLAGS
 def main(_):
     # Load the offline dataset and environment.
     problem_config = {
-        'task_name': 'bsuite_cartpole',
+        'task_name': 'bsuite_catch',
         'prob_param': {
             'noise_level': 0.2,
             'run_id': 0
@@ -81,7 +81,7 @@ def main(_):
             'policy_noise_level': 0.2,
             'run_id': 1
         },
-        'behavior_dataset_size': 180000,
+        'behavior_dataset_size': 9000,
         'discount': 0.99,
     }
     _, environment = load_data_and_env(
@@ -122,6 +122,7 @@ def main(_):
     learner = TerminalDFIVLearner(
         value_func=value_func,
         instrumental_feature=instrumental_feature,
+        terminate_predictor=terminate_predictor,
         policy_net=target_policy_net,
         discount=problem_config['discount'],
         value_learning_rate=FLAGS.value_learning_rate,
