@@ -132,8 +132,8 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
     def update_instrumental(self, current_obs, action, reward, discount, next_obs):
         next_action = self.policy(next_obs)
         discount = tf.expand_dims(discount, axis=1)
-        target = discount * self.value_feature(next_obs, next_action, training=False)
-        target = self.value_feature(current_obs, action) - self.discount * target
+        target = discount * add_const_col(self.value_feature(next_obs, next_action, training=False))
+        target = add_const_col(self.value_feature(current_obs, action)) - self.discount * target
         l2 = snt.regularizers.L2(self.instrumental_reg)
         with tf.GradientTape() as tape:
             feature = self.instrumental_feature(obs=current_obs, action=action, training=True)
@@ -158,8 +158,10 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
                                                              training=False)
         l2 = snt.regularizers.L2(self.value_reg)
         with tf.GradientTape() as tape:
-            target_1st = discount_1st * self.value_feature(obs=next_obs_1st, action=next_action_1st, training=True)
-            target_1st = self.value_feature(obs=current_obs_1st, action=action_1st, training=True) - self.discount * target_1st
+            target_1st = discount_1st * add_const_col(
+                self.value_feature(obs=next_obs_1st, action=next_action_1st, training=True))
+            target_1st = add_const_col(self.value_feature(obs=current_obs_1st, action=action_1st,
+                                                          training=True)) - self.discount * target_1st
             stage1_weight = fit_linear(target_1st, instrumental_feature_1st, self.stage1_reg)
             predicted_feature = linear_reg_pred(instrumental_feature_2nd, stage1_weight)
             loss = linear_reg_loss(tf.expand_dims(reward_2nd, -1), predicted_feature, self.stage2_reg)
@@ -181,15 +183,15 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
         instrumental_feature_2nd = self.instrumental_feature(obs=current_obs_2nd, action=action_2nd,
                                                              training=False)
 
-        target_1st = discount_1st * self.value_feature(obs=next_obs_1st, action=next_action_1st, training=True)
-        target_1st = self.value_feature(obs=current_obs_1st, action=action_1st,
-                                        training=True) - self.discount * target_1st
+        target_1st = discount_1st * add_const_col(
+            self.value_feature(obs=next_obs_1st, action=next_action_1st, training=True))
+        target_1st = add_const_col(self.value_feature(obs=current_obs_1st, action=action_1st,
+                                                      training=True)) - self.discount * target_1st
         stage1_weight = fit_linear(target_1st, instrumental_feature_1st, self.stage1_reg)
         predicted_feature = linear_reg_pred(instrumental_feature_2nd, stage1_weight)
 
         self.value_func._weight.assign(
             fit_linear(tf.expand_dims(reward_2nd, -1), predicted_feature, self.stage2_reg))
-
 
     def step(self):
         # Do a batch of SGD.
