@@ -96,8 +96,8 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         self.value_feature = value_func._feature
         self.instrumental_feature = instrumental_feature
         self.terminate_predictor = terminate_predictor
-        self.learn_terminate_predictor(n_terminate_predictor_iter,
-                                       terminate_predictor_learning_rate)
+        self.learn_terminate_predictor(terminate_predictor_learning_rate,
+                                       n_terminate_predictor_iter)
 
         self.policy = policy_net
         self._value_func_optimizer = snt.optimizers.Adam(
