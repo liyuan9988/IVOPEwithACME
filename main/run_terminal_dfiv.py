@@ -46,6 +46,7 @@ flags.DEFINE_float('stage2_reg', 1e-5, 'ridge regularizer for stage 2 regression
 flags.DEFINE_float('instrumental_reg', 1e-5, 'ridge regularizer instrumental')
 flags.DEFINE_float('value_reg', 1e-5, 'ridge regularizer for value_reg')
 
+
 flags.DEFINE_integer('instrumental_iter', 10, 'number of iteration for instrumental function')
 flags.DEFINE_integer('value_iter', 10, 'number of iteration for value function')
 
@@ -58,6 +59,7 @@ flags.DEFINE_float('d_tm1_weight', 0.01,  # 0.01 for cartpole, 0.03 for catch an
                    'Weights of terminal states.')
 flags.DEFINE_boolean('include_terminal', False, 'Generate dataset with terminal absorbing state.')
 flags.DEFINE_boolean('ignore_d_tm1', False, 'Always set d_tm1 = 1.0 if True.')
+flags.DEFINE_boolean('ignore_terminate_confounding', False, 'Whether to ignore the confounding term caused by terminal state')
 
 
 FLAGS = flags.FLAGS
@@ -133,6 +135,7 @@ def main(_):
         instrumental_reg=FLAGS.instrumental_reg,
         instrumental_iter=FLAGS.instrumental_iter,
         value_iter=FLAGS.value_iter,
+        ignore_terminate_confounding=FLAGS.ignore_terminate_confounding,
         dataset=dataset,
         d_tm1_weight=FLAGS.d_tm1_weight,
         counter=learner_counter)

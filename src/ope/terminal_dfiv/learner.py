@@ -40,8 +40,11 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
                  stage2_reg: float,
                  instrumental_iter: int,
                  value_iter: int,
+                 ignore_terminate_confounding: bool,
                  dataset: tf.data.Dataset,
                  d_tm1_weight: float = 1.0,
+                 n_terminate_predictor_iter: int = 1000,
+                 terminate_predictor_learning_rate: float = 0.001,
                  counter: counting.Counter = None,
                  logger: loggers.Logger = None,
                  checkpoint: bool = True):
@@ -58,8 +61,11 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
           stage2_reg: ridge regularizer for stage 2 regression
           instrumental_iter: number of iteration for instrumental net
           value_iter: number of iteration for value function,
+          ignore_terminate_confounding: whether to ignore the confounding term caused by terminal state,
           dataset: dataset to learn from.
           d_tm1_weight: weights for terminal state transitions.
+          n_terminate_predictor_iter: number of iteration for terminate predictor,
+          terminate_predictor_learning_rate: learning rate for terminate predictor,
           counter: Counter object for (potentially distributed) counting.
           logger: Logger object for writing logs to.
           checkpoint: boolean indicating whether to checkpoint the learner.
@@ -76,7 +82,7 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         self.value_reg = value_reg
         self.instrumental_reg = instrumental_reg
         self.d_tm1_weight = d_tm1_weight
-        self.ignore_terminate_confounding = True
+        self.ignore_terminate_confounding = ignore_terminate_confounding
 
         # Get an iterator over the dataset.
         self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
@@ -90,7 +96,8 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         self.value_feature = value_func._feature
         self.instrumental_feature = instrumental_feature
         self.terminate_predictor = terminate_predictor
-        self.learn_terminate_predictor()
+        self.learn_terminate_predictor(n_terminate_predictor_iter,
+                                       terminate_predictor_learning_rate)
 
         self.policy = policy_net
         self._value_func_optimizer = snt.optimizers.Adam(
@@ -114,11 +121,11 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         else:
             self._snapshotter = None
 
-    def learn_terminate_predictor(self):
+    def learn_terminate_predictor(self, lr, niter):
         print("start training terminate predictor")
-        opt = snt.optimizers.Adam(0.001, beta1=0.5, beta2=0.9)
+        opt = snt.optimizers.Adam(lr, beta1=0.5, beta2=0.9)
         bce = tf.keras.losses.BinaryCrossentropy()
-        for i in range(1000):
+        for i in range(niter):
             with tf.GradientTape() as tape:
                 o_tm1, a_tm1, _, d_t, _, _, _ = self.stage1_input[:7]
                 pred = self.terminate_predictor(o_tm1, a_tm1, training=True)
