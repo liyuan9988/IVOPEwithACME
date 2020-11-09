@@ -789,7 +789,7 @@ def dataset(root_path: str,
     example_ds = example_ds.map(
         _build_sarsa_example,
         num_parallel_calls=tf.data.experimental.AUTOTUNE)
-    example_ds.batch(batch_size)
+    example_ds = example_ds.batch(batch_size)
   else:
     example_ds = _padded_batch(
         example_ds, batch_size, shapes, drop_remainder=True)

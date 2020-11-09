@@ -25,7 +25,7 @@ import tree
 
 ROOT_PATH = pathlib.Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT_PATH))
-from src.load_data import load_policy_net, load_data_and_env
+from src.utils import load_policy_net, load_data_and_env
 
 # Agent flags
 flags.DEFINE_integer('num_episodes', 100, 'number of episodes to evaluate.')
