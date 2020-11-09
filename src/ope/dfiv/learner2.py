@@ -78,7 +78,6 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
 
         # Get an iterator over the dataset.
         self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
-        self.update_batch()
 
         self.value_func = value_func
         self.value_feature = value_func._feature
@@ -105,26 +104,27 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
             self._snapshotter = None
 
     def update_batch(self):
-        self.stage1_input = next(self._iterator)
-        self.stage2_input = next(self._iterator)
-        if isinstance(self.stage1_input, reverb.ReplaySample):
-            self.stage1_input = self.stage1_input.data
-            self.stage2_input = self.stage2_input.data
+        stage1_input = next(self._iterator)
+        stage2_input = next(self._iterator)
+        if isinstance(stage1_input, reverb.ReplaySample):
+            stage1_input = stage1_input.data
+            stage2_input = stage2_input.data
+        return stage1_input, stage2_input
 
     @tf.function
     def _step(self) -> Dict[str, tf.Tensor]:
         stage1_loss = None
         stage2_loss = None
         # Pull out the data needed for updates/priorities.
-        self.update_batch()
-        for i in range(self.value_iter):
-            for j in range(self.instrumental_iter // self.value_iter):
-                o_tm1, a_tm1, r_t, d_t, o_t, _, d_tm1 = self.stage1_input[:7]
+        for _ in range(self.value_iter):
+            stage1_input, stage2_input = self.update_batch()
+            for _ in range(self.instrumental_iter // self.value_iter):
+                o_tm1, a_tm1, r_t, d_t, o_t = stage1_input[:5]
                 stage1_loss = self.update_instrumental(o_tm1, a_tm1, r_t, d_t, o_t)
 
-            stage2_loss = self.update_value(self.stage1_input, self.stage2_input)
+            stage2_loss = self.update_value(stage1_input, stage2_input)
 
-        self.update_final_weight(self.stage1_input, self.stage2_input)
+        self.update_final_weight(stage1_input, stage2_input)
         self._num_steps.assign_add(1)
 
         # Compute the global norm of the gradients for logging.
@@ -150,8 +150,8 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
         return loss
 
     def update_value(self, stage1_input, stage2_input):
-        current_obs_1st, action_1st, _, discount_1st, next_obs_1st, _, d_tm1_1st = stage1_input[:7]
-        current_obs_2nd, action_2nd, reward_2nd, _, _, _, d_tm1_2nd = stage2_input[:7]
+        current_obs_1st, action_1st, _, discount_1st, next_obs_1st = stage1_input[:5]
+        current_obs_2nd, action_2nd, reward_2nd = stage2_input[:3]
         next_action_1st = self.policy(next_obs_1st)
         discount_1st = tf.expand_dims(discount_1st, axis=1)
 
@@ -176,8 +176,8 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
         return loss
 
     def update_final_weight(self, stage1_input, stage2_input):
-        current_obs_1st, action_1st, _, discount_1st, next_obs_1st, _, d_tm1_1st = stage1_input[:7]
-        current_obs_2nd, action_2nd, reward_2nd, _, _, _, d_tm1_2nd = stage2_input[:7]
+        current_obs_1st, action_1st, _, discount_1st, next_obs_1st = stage1_input[:5]
+        current_obs_2nd, action_2nd, reward_2nd = stage2_input[:3]
         next_action_1st = self.policy(next_obs_1st)
         discount_1st = tf.expand_dims(discount_1st, axis=1)
 
