@@ -86,11 +86,7 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
 
         # Get an iterator over the dataset.
         self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
-        self.stage1_input = next(self._iterator)
-        self.stage2_input = next(self._iterator)
-        if isinstance(self.stage1_input, reverb.ReplaySample):
-            self.stage1_input = self.stage1_input.data
-            self.stage2_input = self.stage2_input.data
+        self.update_batch()
 
         self.value_func = value_func
         self.value_feature = value_func._feature
@@ -128,6 +124,13 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         else:
             self._snapshotter = None
 
+    def update_batch(self):
+        self.stage1_input = next(self._iterator)
+        self.stage2_input = next(self._iterator)
+        if isinstance(self.stage1_input, reverb.ReplaySample):
+            self.stage1_input = self.stage1_input.data
+            self.stage2_input = self.stage2_input.data
+
     def learn_terminate_predictor(self, lr, niter):
         print('start training terminate predictor')
         opt = snt.optimizers.Adam(lr, beta1=0.5, beta2=0.9)
@@ -164,13 +167,14 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         # Pull out the data needed for updates/priorities.
 
         if self._num_steps < self._n_terminate_predictor_iter:
+            self.update_batch()
             pred_loss = self.learn_terminate_predictor_step()
         else:
             for _ in range(self.value_iter):
                 for _ in range(self.instrumental_iter // self.value_iter):
+                    self.update_batch()
                     o_tm1, a_tm1, r_t, d_t, o_t, _, d_tm1 = self.stage1_input[:7]
                     stage1_loss = self.update_instrumental(o_tm1, a_tm1, r_t, d_t, o_t, d_tm1)
-
                 stage2_loss = self.update_value(self.stage1_input, self.stage2_input)
 
             self.update_final_weight(self.stage1_input, self.stage2_input)
