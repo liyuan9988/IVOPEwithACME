@@ -51,9 +51,9 @@ def load_offline_dm_control_dataset(
         noise_std: float,
         root_path: str,
         data_path: str,
+        batch_size: int,
         num_shards: int = 1,
-        num_threads: int = 1,
-        batch_size: int = 2) -> Tuple[tf.data.Dataset, dm_env.Environment]:
+        num_threads: int = 1) -> Tuple[tf.data.Dataset, dm_env.Environment]:
     """Reuse dm_control_suite to load offline datasets from a different path."""
     # Data file path format: {root_path}/{data_path}-?????-of-{num_shards:05d}
     task = dm_control_suite.ControlSuite(task_name=task_name)
@@ -73,9 +73,9 @@ def load_offline_bsuite_dataset(
         bsuite_id: str,
         random_prob: float,
         path: str,
+        batch_size: int,
         num_shards: int = 1,
         num_threads: int = 1,
-        batch_size: int = 2,
         single_precision_wrapper: bool = True,
         shuffle: bool = True) -> Tuple[tf.data.Dataset,
                                                         dm_env.Environment]:

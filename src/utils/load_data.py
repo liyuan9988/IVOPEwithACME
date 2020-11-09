@@ -10,7 +10,8 @@ from src.utils import load_offline_dm_control_dataset, load_offline_bsuite_datas
 from src.utils import acme_utils
 
 
-def load_data_and_env(task_name: str, params: dict, dataset_path: str = None):
+def load_data_and_env(task_name: str, params: dict, dataset_path: str,
+                      batch_size: int):
     dataset_path = Path(dataset_path)
     if task_name.startswith("bsuite"):
         # BSuite tasks.
@@ -21,7 +22,8 @@ def load_data_and_env(task_name: str, params: dict, dataset_path: str = None):
         dataset, environment = load_offline_bsuite_dataset(
             bsuite_id=bsuite_id,
             random_prob=noise_level,
-            path=str(path))
+            path=str(path),
+            batch_size=batch_size)
     elif task_name.startswith("dm_control"):
         # DM Control tasks.
         dm_control_task_name = task_name[len("dm_control_"):]
@@ -33,7 +35,8 @@ def load_data_and_env(task_name: str, params: dict, dataset_path: str = None):
             task_name=dm_control_task_name,
             noise_std=noise_level,
             root_path=str(root_path),
-            data_path=str(data_path))
+            data_path=str(data_path),
+            batch_size=batch_size)
     else:
         raise ValueError(f"task name {task_name} is unknown")
     return dataset, environment

@@ -3,7 +3,7 @@
 
 from absl import app
 from absl import flags
-import acme
+from absl import logging
 
 from acme import specs
 from acme.agents.tf import actors
@@ -24,9 +24,12 @@ import sys
 ROOT_PATH = pathlib.Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT_PATH))
 
-from src.load_data import load_policy_net, load_data_and_env  # noqa: E402
-from src.ope.kiv import KIVLearner, make_ope_networks  # noqa: E402
-from src.utils import ope_evaluation, generate_train_data
+from src.ope.kiv import KIVLearner
+from src.ope.kiv import make_ope_networks
+from src.utils import generate_train_data
+from src.utils import load_data_and_env
+from src.utils import load_policy_net
+from src.utils import ope_evaluation
 
 flags.DEFINE_string(
     'dataset_path',
@@ -78,9 +81,9 @@ def main(_):
     environment_spec = specs.make_environment_spec(environment)
 
     task_gamma_map = {
-          'bsuite_catch': 0.25,
-          'bsuite_mountain_car': 0.5,
-          'bsuite_cartpole': 0.44,
+        'bsuite_catch': 0.25,
+        'bsuite_mountain_car': 0.5,
+        'bsuite_cartpole': 0.44,
     }
     gamma = FLAGS.gamma or task_gamma_map[problem_config['task_name']]
 
@@ -95,19 +98,18 @@ def main(_):
                                         environment_spec=environment_spec,
                                         dataset_path=FLAGS.dataset_path)
 
-    with tf.device('CPU'):
-        behavior_policy_net = load_policy_net(task_name=problem_config['task_name'],
-                                              params=problem_config['behavior_policy_param'],
-                                              environment_spec=environment_spec,
-                                              dataset_path=FLAGS.dataset_path)
-
-    print("start generating transitions")
-    dataset = generate_train_data(behavior_policy_net, environment, 180000)
-    dataset = generate_train_data(
-        behavior_policy_net, environment,
-        problem_config['behavior_dataset_size'])
-    print("end generating transitions")
-    dataset = dataset.batch(problem_config['behavior_dataset_size'] // 2)
+    if problem_config['behavior_dataset_size'] > 0:
+      # Use behavior policy to generate an off-policy dataset and replace
+      # the pre-generated offline dataset.
+      logging.warning('Ignore offline dataset')
+      dataset = generate_train_data(
+          task_name=problem_config['task_name'],
+          behavior_policy_param=problem_config['behavior_policy_param'],
+          dataset_path=FLAGS.dataset_path,
+          environment=environment,
+          dataset_size=problem_config['behavior_dataset_size'],
+          batch_size=problem_config['behavior_dataset_size'] // 2,
+          shuffle=False)
 
     counter = counting.Counter()
     learner_counter = counting.Counter(counter, prefix='learner')
@@ -117,7 +119,7 @@ def main(_):
         value_func=value_func,
         instrumental_feature=instrumental_feature,
         policy_net=target_policy_net,
-        discount=problem_config["discount"],
+        discount=problem_config['discount'],
         stage1_reg=FLAGS.stage1_reg,
         stage2_reg=FLAGS.stage2_reg,
         dataset=dataset,
@@ -133,7 +135,7 @@ def main(_):
                        logger=eval_logger,
                        num_init_samples=FLAGS.evaluate_init_samples,
                        mse_samples=18,
-                       discount=problem_config["discount"])
+                       discount=problem_config['discount'])
         if learner.state['num_steps'] >= FLAGS.max_steps:
             break
 
