@@ -96,8 +96,10 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         self.value_feature = value_func._feature
         self.instrumental_feature = instrumental_feature
         self.terminate_predictor = terminate_predictor
-        self.learn_terminate_predictor(terminate_predictor_learning_rate,
-                                       n_terminate_predictor_iter)
+        self._bce = tf.keras.losses.BinaryCrossentropy()
+
+        # self.learn_terminate_predictor(terminate_predictor_learning_rate,
+        #                                n_terminate_predictor_iter)
 
         self.policy = policy_net
         self._value_func_optimizer = snt.optimizers.Adam(
@@ -105,9 +107,14 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         self._instrumental_func_optimizer = snt.optimizers.Adam(
             instrumental_learning_rate, beta1=0.5, beta2=0.9)
 
+        self._terminate_predictor_optimizer = snt.optimizers.Adam(
+            terminate_predictor_learning_rate)
+        self._n_terminate_predictor_iter = n_terminate_predictor_iter
+
         self._variables = [
             value_func.trainable_variables,
             instrumental_feature.trainable_variables,
+            terminate_predictor.trainable_variables,
         ]
         self._num_steps = tf.Variable(0, dtype=tf.int32)
 
@@ -122,10 +129,10 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
             self._snapshotter = None
 
     def learn_terminate_predictor(self, lr, niter):
-        print("start training terminate predictor")
+        print('start training terminate predictor')
         opt = snt.optimizers.Adam(lr, beta1=0.5, beta2=0.9)
         bce = tf.keras.losses.BinaryCrossentropy()
-        for i in range(niter):
+        for _ in range(niter):
             with tf.GradientTape() as tape:
                 o_tm1, a_tm1, _, d_t, _, _, _ = self.stage1_input[:7]
                 pred = self.terminate_predictor(o_tm1, a_tm1, training=True)
@@ -133,26 +140,47 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
                 print(loss)
             gradient = tape.gradient(loss, self.terminate_predictor.trainable_variables)
             opt.apply(gradient, self.terminate_predictor.trainable_variables)
-        print("end training terminate predictor")
+        print('end training terminate predictor')
+
+    @tf.function
+    def learn_terminate_predictor_step(self):
+        print('start training terminate predictor')
+        with tf.GradientTape() as tape:
+            o_tm1, a_tm1, _, d_t, _, _, _ = self.stage1_input[:7]
+            pred = self.terminate_predictor(o_tm1, a_tm1, training=True)
+            loss = self._bce(tf.expand_dims(d_t, axis=-1), pred)
+            print(loss)
+        gradient = tape.gradient(loss, self.terminate_predictor.trainable_variables)
+        self._terminate_predictor_optimizer.apply(
+            gradient, self.terminate_predictor.trainable_variables)
+        print('end training terminate predictor')
+        return loss
 
     @tf.function
     def _step(self) -> Dict[str, tf.Tensor]:
-        stage1_loss = None
-        stage2_loss = None
+        stage1_loss = 0.
+        stage2_loss = 0.
+        pred_loss = 0.
         # Pull out the data needed for updates/priorities.
 
-        for i in range(self.value_iter):
-            for j in range(self.instrumental_iter // self.value_iter):
-                o_tm1, a_tm1, r_t, d_t, o_t, _, d_tm1 = self.stage1_input[:7]
-                stage1_loss = self.update_instrumental(o_tm1, a_tm1, r_t, d_t, o_t, d_tm1)
+        if self._num_steps < self._n_terminate_predictor_iter:
+            pred_loss = self.learn_terminate_predictor_step()
+        else:
+            for _ in range(self.value_iter):
+                for _ in range(self.instrumental_iter // self.value_iter):
+                    o_tm1, a_tm1, r_t, d_t, o_t, _, d_tm1 = self.stage1_input[:7]
+                    stage1_loss = self.update_instrumental(o_tm1, a_tm1, r_t, d_t, o_t, d_tm1)
 
-            stage2_loss = self.update_value(self.stage1_input, self.stage2_input)
+                stage2_loss = self.update_value(self.stage1_input, self.stage2_input)
 
-        self.update_final_weight(self.stage1_input, self.stage2_input)
+            self.update_final_weight(self.stage1_input, self.stage2_input)
         self._num_steps.assign_add(1)
 
         # Compute the global norm of the gradients for logging.
-        fetches = {'stage1_loss': stage1_loss, 'stage2_loss': stage2_loss}
+        fetches = {'stage1_loss': stage1_loss,
+                   'stage2_loss': stage2_loss,
+                   'pred_loss': pred_loss,
+                   }
 
         return fetches
 
@@ -200,7 +228,7 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
 
     def update_value(self, stage1_input, stage2_input):
         current_obs_1st, action_1st, _, discount_1st, next_obs_1st, _, _ = stage1_input[:7]
-        current_obs_2nd, action_2nd, reward_2nd, discount_2nd, _, _, _ = stage2_input[:7]
+        current_obs_2nd, action_2nd, _, discount_2nd, _, _, _ = stage2_input[:7]
         next_action_1st = self.policy(next_obs_1st)
         discount_1st = tf.expand_dims(discount_1st, axis=1)
         discount_2nd = tf.expand_dims(discount_2nd, axis=1)
@@ -217,7 +245,7 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
             stage1_weight = fit_linear(target_1st, instrumental_feature_1st, self.stage1_reg)
             predicted_feature = linear_reg_pred(instrumental_feature_2nd, stage1_weight)
             current_feature = add_const_col(self.value_feature(obs=current_obs_2nd, action=action_2nd, training=True))
-            stage2_weight, loss = self.cal_value_weight(predicted_feature, current_feature, stage2_input)
+            _, loss = self.cal_value_weight(predicted_feature, current_feature, stage2_input)
             loss = loss + l2(self.value_feature.trainable_variables)
             loss /= current_obs_2nd.shape[0]
 
@@ -227,7 +255,7 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
 
     def update_final_weight(self, stage1_input, stage2_input):
         current_obs_1st, action_1st, _, discount_1st, next_obs_1st, _, _ = stage1_input[:7]
-        current_obs_2nd, action_2nd, reward_2nd, discount_2nd, _, _, _ = stage2_input[:7]
+        current_obs_2nd, action_2nd, _, discount_2nd, _, _, _ = stage2_input[:7]
         next_action_1st = self.policy(next_obs_1st)
         discount_1st = tf.expand_dims(discount_1st, axis=1)
         discount_2nd = tf.expand_dims(discount_2nd, axis=1)
@@ -241,7 +269,7 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         stage1_weight = fit_linear(target_1st, instrumental_feature_1st, self.stage1_reg)
         predicted_feature = linear_reg_pred(instrumental_feature_2nd, stage1_weight)
         current_feature = add_const_col(self.value_feature(obs=current_obs_2nd, action=action_2nd, training=True))
-        stage2_weight, loss = self.cal_value_weight(predicted_feature, current_feature, stage2_input)
+        stage2_weight, _ = self.cal_value_weight(predicted_feature, current_feature, stage2_input)
         self.value_func._weight.assign(stage2_weight)
 
     def step(self):
