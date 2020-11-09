@@ -86,7 +86,6 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
 
         # Get an iterator over the dataset.
         self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
-        self.update_batch()
 
         self.value_func = value_func
         self.value_feature = value_func._feature
@@ -125,31 +124,32 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
             self._snapshotter = None
 
     def update_batch(self):
-        self.stage1_input = next(self._iterator)
-        self.stage2_input = next(self._iterator)
-        if isinstance(self.stage1_input, reverb.ReplaySample):
-            self.stage1_input = self.stage1_input.data
-            self.stage2_input = self.stage2_input.data
+        stage1_input = next(self._iterator)
+        stage2_input = next(self._iterator)
+        if isinstance(stage1_input, reverb.ReplaySample):
+            stage1_input = stage1_input.data
+            stage2_input = stage2_input.data
+        return stage1_input, stage2_input
 
-    def learn_terminate_predictor(self, lr, niter):
-        print('start training terminate predictor')
-        opt = snt.optimizers.Adam(lr, beta1=0.5, beta2=0.9)
-        bce = tf.keras.losses.BinaryCrossentropy()
-        for _ in range(niter):
-            with tf.GradientTape() as tape:
-                o_tm1, a_tm1, _, d_t, _, _, _ = self.stage1_input[:7]
-                pred = self.terminate_predictor(o_tm1, a_tm1, training=True)
-                loss = bce(tf.expand_dims(d_t, axis=-1), pred)
-                print(loss)
-            gradient = tape.gradient(loss, self.terminate_predictor.trainable_variables)
-            opt.apply(gradient, self.terminate_predictor.trainable_variables)
-        print('end training terminate predictor')
+    # def learn_terminate_predictor(self, stage1_input, lr, niter):
+    #     print('start training terminate predictor')
+    #     opt = snt.optimizers.Adam(lr, beta1=0.5, beta2=0.9)
+    #     bce = tf.keras.losses.BinaryCrossentropy()
+    #     for _ in range(niter):
+    #         with tf.GradientTape() as tape:
+    #             o_tm1, a_tm1, _, d_t = stage1_input[:4]
+    #             pred = self.terminate_predictor(o_tm1, a_tm1, training=True)
+    #             loss = bce(tf.expand_dims(d_t, axis=-1), pred)
+    #             print(loss)
+    #         gradient = tape.gradient(loss, self.terminate_predictor.trainable_variables)
+    #         opt.apply(gradient, self.terminate_predictor.trainable_variables)
+    #     print('end training terminate predictor')
 
     @tf.function
-    def learn_terminate_predictor_step(self):
+    def learn_terminate_predictor_step(self, stage1_input):
         print('start training terminate predictor')
         with tf.GradientTape() as tape:
-            o_tm1, a_tm1, _, d_t, _, _, _ = self.stage1_input[:7]
+            o_tm1, a_tm1, _, d_t = stage1_input[:4]
             pred = self.terminate_predictor(o_tm1, a_tm1, training=True)
             loss = self._bce(tf.expand_dims(d_t, axis=-1), pred)
             print(loss)
@@ -167,17 +167,17 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         # Pull out the data needed for updates/priorities.
 
         if self._num_steps < self._n_terminate_predictor_iter:
-            self.update_batch()
-            pred_loss = self.learn_terminate_predictor_step()
+            stage1_input, _ = self.update_batch()
+            pred_loss = self.learn_terminate_predictor_step(stage1_input)
         else:
             for _ in range(self.value_iter):
+                stage1_input, stage2_input = self.update_batch()
                 for _ in range(self.instrumental_iter // self.value_iter):
-                    self.update_batch()
-                    o_tm1, a_tm1, r_t, d_t, o_t, _, d_tm1 = self.stage1_input[:7]
+                    o_tm1, a_tm1, r_t, d_t, o_t, _, d_tm1 = stage1_input[:7]
                     stage1_loss = self.update_instrumental(o_tm1, a_tm1, r_t, d_t, o_t, d_tm1)
-                stage2_loss = self.update_value(self.stage1_input, self.stage2_input)
+                stage2_loss = self.update_value(stage1_input, stage2_input)
 
-            self.update_final_weight(self.stage1_input, self.stage2_input)
+            self.update_final_weight(stage1_input, stage2_input)
         self._num_steps.assign_add(1)
 
         # Compute the global norm of the gradients for logging.
@@ -207,7 +207,7 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
 
     @tf.function
     def cal_value_weight(self, predicted_feature, current_feature, stage2_input):
-        current_obs_2nd, action_2nd, reward_2nd, discount_2nd, _, _, _ = stage2_input[:7]
+        current_obs_2nd, action_2nd, reward_2nd, discount_2nd = stage2_input[:4]
         discount_2nd = tf.expand_dims(discount_2nd, axis=1)
         feature = current_feature - discount_2nd * self.discount * predicted_feature
         nData, nDim = feature.shape
@@ -231,8 +231,8 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         return weight, loss
 
     def update_value(self, stage1_input, stage2_input):
-        current_obs_1st, action_1st, _, discount_1st, next_obs_1st, _, _ = stage1_input[:7]
-        current_obs_2nd, action_2nd, _, discount_2nd, _, _, _ = stage2_input[:7]
+        current_obs_1st, action_1st, _, discount_1st, next_obs_1st = stage1_input[:5]
+        current_obs_2nd, action_2nd, _, discount_2nd = stage2_input[:4]
         next_action_1st = self.policy(next_obs_1st)
         discount_1st = tf.expand_dims(discount_1st, axis=1)
         discount_2nd = tf.expand_dims(discount_2nd, axis=1)
@@ -258,8 +258,8 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         return loss
 
     def update_final_weight(self, stage1_input, stage2_input):
-        current_obs_1st, action_1st, _, discount_1st, next_obs_1st, _, _ = stage1_input[:7]
-        current_obs_2nd, action_2nd, _, discount_2nd, _, _, _ = stage2_input[:7]
+        current_obs_1st, action_1st, _, discount_1st, next_obs_1st = stage1_input[:5]
+        current_obs_2nd, action_2nd, _, discount_2nd = stage2_input[:4]
         next_action_1st = self.policy(next_obs_1st)
         discount_1st = tf.expand_dims(discount_1st, axis=1)
         discount_2nd = tf.expand_dims(discount_2nd, axis=1)

@@ -78,7 +78,6 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
 
         # Get an iterator over the dataset.
         self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
-        self.update_batch()
 
         self.value_func = value_func
         self.value_feature = value_func._feature
@@ -105,11 +104,12 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
             self._snapshotter = None
 
     def update_batch(self):
-        self.stage1_input = next(self._iterator)
-        self.stage2_input = next(self._iterator)
-        if isinstance(self.stage1_input, reverb.ReplaySample):
-            self.stage1_input = self.stage1_input.data
-            self.stage2_input = self.stage2_input.data
+        stage1_input = next(self._iterator)
+        stage2_input = next(self._iterator)
+        if isinstance(stage1_input, reverb.ReplaySample):
+            stage1_input = stage1_input.data
+            stage2_input = stage2_input.data
+        return stage1_input, stage2_input
 
     @tf.function
     def _step(self) -> Dict[str, tf.Tensor]:
@@ -117,15 +117,15 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         stage2_loss = None
         # Pull out the data needed for updates/priorities.
 
-        for i in range(self.value_iter):
-            self.update_batch()
-            for j in range(self.instrumental_iter // self.value_iter):
-                o_tm1, a_tm1, r_t, d_t, o_t, _, d_tm1 = self.stage1_input[:7]
+        for _ in range(self.value_iter):
+            stage1_input, stage2_input = self.update_batch()
+            for _ in range(self.instrumental_iter // self.value_iter):
+                o_tm1, a_tm1, r_t, d_t, o_t, _, d_tm1 = stage1_input[:7]
                 stage1_loss = self.update_instrumental(o_tm1, a_tm1, r_t, d_t, o_t, d_tm1)
 
-            stage2_loss = self.update_value(self.stage1_input, self.stage2_input)
+            stage2_loss = self.update_value(stage1_input, stage2_input)
 
-        self.update_final_weight(self.stage1_input, self.stage2_input)
+        self.update_final_weight(stage1_input, stage2_input)
         self._num_steps.assign_add(1)
 
         # Compute the global norm of the gradients for logging.
