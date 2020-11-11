@@ -10,7 +10,6 @@ from acme.tf import utils as tf2_utils
 from acme.utils import counting
 from acme.utils import loggers
 import numpy as np
-import reverb
 import sonnet as snt
 import tensorflow as tf
 
@@ -126,9 +125,6 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
     def update_batch(self):
         stage1_input = next(self._iterator)
         stage2_input = next(self._iterator)
-        if isinstance(stage1_input, reverb.ReplaySample):
-            stage1_input = stage1_input.data
-            stage2_input = stage2_input.data
         return stage1_input, stage2_input
 
     # def learn_terminate_predictor(self, stage1_input, lr, niter):
@@ -137,7 +133,7 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
     #     bce = tf.keras.losses.BinaryCrossentropy()
     #     for _ in range(niter):
     #         with tf.GradientTape() as tape:
-    #             o_tm1, a_tm1, _, d_t = stage1_input[:4]
+    #             o_tm1, a_tm1, _, d_t = stage1_input.data[:4]
     #             pred = self.terminate_predictor(o_tm1, a_tm1, training=True)
     #             loss = bce(tf.expand_dims(d_t, axis=-1), pred)
     #             print(loss)
@@ -149,7 +145,7 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
     def learn_terminate_predictor_step(self, stage1_input):
         print('start training terminate predictor')
         with tf.GradientTape() as tape:
-            o_tm1, a_tm1, _, d_t = stage1_input[:4]
+            o_tm1, a_tm1, _, d_t = stage1_input.data[:4]
             pred = self.terminate_predictor(o_tm1, a_tm1, training=True)
             loss = self._bce(tf.expand_dims(d_t, axis=-1), pred)
             print(loss)
@@ -173,7 +169,7 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
             for _ in range(self.value_iter):
                 stage1_input, stage2_input = self.update_batch()
                 for _ in range(self.instrumental_iter // self.value_iter):
-                    o_tm1, a_tm1, r_t, d_t, o_t, _, d_tm1 = stage1_input[:7]
+                    o_tm1, a_tm1, r_t, d_t, o_t, _, d_tm1 = stage1_input.data[:7]
                     stage1_loss = self.update_instrumental(o_tm1, a_tm1, r_t, d_t, o_t, d_tm1)
                 stage2_loss = self.update_value(stage1_input, stage2_input)
 
@@ -207,7 +203,7 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
 
     @tf.function
     def cal_value_weight(self, predicted_feature, current_feature, stage2_input):
-        current_obs_2nd, action_2nd, reward_2nd, discount_2nd = stage2_input[:4]
+        current_obs_2nd, action_2nd, reward_2nd, discount_2nd = stage2_input.data[:4]
         discount_2nd = tf.expand_dims(discount_2nd, axis=1)
         feature = current_feature - discount_2nd * self.discount * predicted_feature
         nData, nDim = feature.shape
@@ -231,8 +227,8 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         return weight, loss
 
     def update_value(self, stage1_input, stage2_input):
-        current_obs_1st, action_1st, _, discount_1st, next_obs_1st = stage1_input[:5]
-        current_obs_2nd, action_2nd, _, discount_2nd = stage2_input[:4]
+        current_obs_1st, action_1st, _, discount_1st, next_obs_1st = stage1_input.data[:5]
+        current_obs_2nd, action_2nd, _, discount_2nd = stage2_input.data[:4]
         next_action_1st = self.policy(next_obs_1st)
         discount_1st = tf.expand_dims(discount_1st, axis=1)
         discount_2nd = tf.expand_dims(discount_2nd, axis=1)
@@ -258,8 +254,8 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         return loss
 
     def update_final_weight(self, stage1_input, stage2_input):
-        current_obs_1st, action_1st, _, discount_1st, next_obs_1st = stage1_input[:5]
-        current_obs_2nd, action_2nd, _, discount_2nd = stage2_input[:4]
+        current_obs_1st, action_1st, _, discount_1st, next_obs_1st = stage1_input.data[:5]
+        current_obs_2nd, action_2nd, _, discount_2nd = stage2_input.data[:4]
         next_action_1st = self.policy(next_obs_1st)
         discount_1st = tf.expand_dims(discount_1st, axis=1)
         discount_2nd = tf.expand_dims(discount_2nd, axis=1)

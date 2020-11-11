@@ -10,7 +10,6 @@ from acme.tf import utils as tf2_utils
 from acme.utils import counting
 from acme.utils import loggers
 import numpy as np
-import reverb
 import sonnet as snt
 import tensorflow as tf
 
@@ -93,9 +92,7 @@ class DeepIVLearner(acme.Learner, tf2_savers.TFSaveable):
         # Pull out the data needed for updates/priorities.
         if self._num_steps < self.density_iter:
             sample = next(self._iterator)
-            if isinstance(sample, reverb.ReplaySample):
-              sample = sample.data
-            o_tm1, a_tm1, r_t, d_t, o_t = sample[:5]
+            o_tm1, a_tm1, r_t, d_t, o_t = sample.data[:5]
             stage1_loss, obs_loss, discount_loss = self.update_density(
                 o_tm1, a_tm1, r_t, d_t, o_t)
             stage2_loss = tf.constant(0.0)
@@ -104,9 +101,7 @@ class DeepIVLearner(acme.Learner, tf2_savers.TFSaveable):
             obs_loss = tf.constant(0.0)
             discount_loss = tf.constant(0.0)
             sample = next(self._iterator)
-            if isinstance(sample, reverb.ReplaySample):
-              sample = sample.data
-            o_tm1, a_tm1, r_t = sample[:3]
+            o_tm1, a_tm1, r_t = sample.data[:3]
             stage2_loss = self.update_value(o_tm1, a_tm1, r_t)
 
         self._num_steps.assign_add(1)

@@ -10,7 +10,6 @@ from acme.tf import utils as tf2_utils
 from acme.utils import counting
 from acme.utils import loggers
 import numpy as np
-import reverb
 import sonnet as snt
 import tensorflow as tf
 
@@ -106,9 +105,6 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
     def update_batch(self):
         stage1_input = next(self._iterator)
         stage2_input = next(self._iterator)
-        if isinstance(stage1_input, reverb.ReplaySample):
-            stage1_input = stage1_input.data
-            stage2_input = stage2_input.data
         return stage1_input, stage2_input
 
     @tf.function
@@ -119,7 +115,7 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
         for _ in range(self.value_iter):
             stage1_input, stage2_input = self.update_batch()
             for _ in range(self.instrumental_iter // self.value_iter):
-                o_tm1, a_tm1, r_t, d_t, o_t = stage1_input[:5]
+                o_tm1, a_tm1, r_t, d_t, o_t = stage1_input.data[:5]
                 stage1_loss = self.update_instrumental(o_tm1, a_tm1, r_t, d_t, o_t)
 
             stage2_loss = self.update_value(stage1_input, stage2_input)
@@ -150,8 +146,8 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
         return loss
 
     def update_value(self, stage1_input, stage2_input):
-        current_obs_1st, action_1st, _, discount_1st, next_obs_1st = stage1_input[:5]
-        current_obs_2nd, action_2nd, reward_2nd = stage2_input[:3]
+        current_obs_1st, action_1st, _, discount_1st, next_obs_1st = stage1_input.data[:5]
+        current_obs_2nd, action_2nd, reward_2nd = stage2_input.data[:3]
         next_action_1st = self.policy(next_obs_1st)
         discount_1st = tf.expand_dims(discount_1st, axis=1)
 
@@ -176,8 +172,8 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
         return loss
 
     def update_final_weight(self, stage1_input, stage2_input):
-        current_obs_1st, action_1st, _, discount_1st, next_obs_1st = stage1_input[:5]
-        current_obs_2nd, action_2nd, reward_2nd = stage2_input[:3]
+        current_obs_1st, action_1st, _, discount_1st, next_obs_1st = stage1_input.data[:5]
+        current_obs_2nd, action_2nd, reward_2nd = stage2_input.data[:3]
         next_action_1st = self.policy(next_obs_1st)
         discount_1st = tf.expand_dims(discount_1st, axis=1)
 
