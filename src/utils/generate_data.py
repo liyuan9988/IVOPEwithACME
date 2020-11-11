@@ -114,7 +114,7 @@ def _generate_data(policy_net, environment, n_samples, batch_size, shuffle,
                                                   action_data,
                                                   nonterminal_data))
 
-    def _reverb_sample(data_tuple):
+    def _reverb_sample(*data_tuple):
         info = reverb.SampleInfo(key=tf.constant(0, tf.uint64),
                                  probability=tf.constant(1.0, tf.float64),
                                  table_size=tf.constant(0, tf.int64),

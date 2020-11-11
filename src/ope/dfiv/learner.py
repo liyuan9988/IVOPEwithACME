@@ -10,7 +10,6 @@ from acme.tf import utils as tf2_utils
 from acme.utils import counting
 from acme.utils import loggers
 import numpy as np
-import reverb
 import sonnet as snt
 import tensorflow as tf
 
@@ -106,10 +105,13 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
     def update_batch(self):
         stage1_input = next(self._iterator)
         stage2_input = next(self._iterator)
-        if isinstance(stage1_input, reverb.ReplaySample):
-            stage1_input = stage1_input.data
-            stage2_input = stage2_input.data
         return stage1_input, stage2_input
+
+    def _get_d_tm1(self, data):
+      if len(data) > 6:
+        return data[6]
+      else:
+        return tf.ones(data[0].shape[0], dtype=tf.float32)
 
     @tf.function
     def _step(self) -> Dict[str, tf.Tensor]:
@@ -120,7 +122,8 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         for _ in range(self.value_iter):
             stage1_input, stage2_input = self.update_batch()
             for _ in range(self.instrumental_iter // self.value_iter):
-                o_tm1, a_tm1, r_t, d_t, o_t, _, d_tm1 = stage1_input[:7]
+                o_tm1, a_tm1, r_t, d_t, o_t = stage1_input.data[:5]
+                d_tm1 = self._get_d_tm1(stage1_input)
                 stage1_loss = self.update_instrumental(o_tm1, a_tm1, r_t, d_t, o_t, d_tm1)
 
             stage2_loss = self.update_value(stage1_input, stage2_input)
@@ -153,8 +156,10 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         return loss
 
     def update_value(self, stage1_input, stage2_input):
-        current_obs_1st, action_1st, _, discount_1st, next_obs_1st, _, d_tm1_1st = stage1_input[:7]
-        current_obs_2nd, action_2nd, reward_2nd, _, _, _, d_tm1_2nd = stage2_input[:7]
+        current_obs_1st, action_1st, _, discount_1st, next_obs_1st = stage1_input.data[:5]
+        d_tm1_1st = self._get_d_tm1(stage1_input)
+        current_obs_2nd, action_2nd, reward_2nd = stage2_input.data[:3]
+        d_tm1_2nd = self._get_d_tm1(stage2_input)
         next_action_1st = self.policy(next_obs_1st)
         discount_1st = tf.expand_dims(discount_1st, axis=1)
         d_tm1_1st = tf.expand_dims(d_tm1_1st, axis=1)
@@ -187,8 +192,10 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         return loss
 
     def update_final_weight(self, stage1_input, stage2_input):
-        current_obs_1st, action_1st, _, discount_1st, next_obs_1st, _, d_tm1_1st = stage1_input[:7]
-        current_obs_2nd, action_2nd, reward_2nd, _, _, _, d_tm1_2nd = stage2_input[:7]
+        current_obs_1st, action_1st, _, discount_1st, next_obs_1st = stage1_input.data[:5]
+        d_tm1_1st = self._get_d_tm1(stage1_input)
+        current_obs_2nd, action_2nd, reward_2nd = stage2_input.data[:3]
+        d_tm1_2nd = self._get_d_tm1(stage2_input)
         next_action_1st = self.policy(next_obs_1st)
         discount_1st = tf.expand_dims(discount_1st, axis=1)
         d_tm1_1st = tf.expand_dims(d_tm1_1st, axis=1)

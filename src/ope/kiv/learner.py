@@ -10,7 +10,6 @@ from acme.tf import utils as tf2_utils
 from acme.utils import counting
 from acme.utils import loggers
 import numpy as np
-import reverb
 import sonnet as snt
 import tensorflow as tf
 
@@ -69,9 +68,6 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
 
         self.stage1_input = next(self._iterator)
         self.stage2_input = next(self._iterator)
-        if isinstance(self.stage1_input, reverb.ReplaySample):
-            self.stage1_input = self.stage1_input.data
-            self.stage2_input = self.stage2_input.data
 
         self._variables = [
             value_func.trainable_variables,
@@ -126,8 +122,8 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
         return loss, weight
 
     def update_final_weight(self, stage1_input, stage2_input):
-        current_obs_1st, action_1st, reward_1st, discount_1st, next_obs_1st = stage1_input[:5]
-        current_obs_2nd, action_2nd, reward_2nd, discount_2nd, next_obs_2nd = stage2_input[:5]
+        current_obs_1st, action_1st, reward_1st, discount_1st, next_obs_1st = stage1_input.data[:5]
+        current_obs_2nd, action_2nd, reward_2nd, discount_2nd, next_obs_2nd = stage2_input.data[:5]
 
         next_action_1st = self.policy(next_obs_1st)
         next_action_2nd = self.policy(next_obs_2nd)
