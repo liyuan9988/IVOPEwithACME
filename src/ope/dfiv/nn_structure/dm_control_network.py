@@ -16,11 +16,15 @@ class InstrumentalFeature(snt.Module):
         self._net = snt.Sequential([
             networks.CriticMultiplexer(),
             networks.LayerNormMLP(layer_sizes, activate_final=True)])
+        self._feature_dim = layer_sizes[-1] + 1
 
     def __call__(self, obs, action, training=False):
         feature = self._net(obs, action)
         feature = add_const_col(feature)
         return feature
+
+    def feature_dim(self):
+        return self._feature_dim
 
 
 class ValueFeature(snt.Module):
@@ -47,6 +51,13 @@ class ValueFunction(snt.Module):
     def __call__(self, obs, action, training=False):
         feature = self._feature(obs, action, training)
         return tf.matmul(add_const_col(feature), self._weight)
+
+    def feature_dim(self):
+        return self._weight.shape[0]
+
+    @property
+    def weight(self):
+        return self._weight
 
 
 def make_value_func_dm_control(value_layer_sizes: str = '512,512,256',

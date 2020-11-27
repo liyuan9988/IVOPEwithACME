@@ -2,6 +2,7 @@
 # pylint: disable=bad-indentation,line-too-long
 """DFIV Learner implementation."""
 
+import datetime
 from typing import Dict, List
 
 import acme
@@ -14,6 +15,9 @@ import sonnet as snt
 import tensorflow as tf
 
 from src.utils.tf_linear_reg_utils import fit_linear, linear_reg_loss, linear_reg_pred, add_const_col
+
+# Default Acme checkpoint TTL is 5 days.
+_CHECKPOINT_TTL = int(datetime.timedelta(days=30).total_seconds())
 
 
 class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
@@ -42,16 +46,19 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
                  d_tm1_weight: float = 1.0,
                  counter: counting.Counter = None,
                  logger: loggers.Logger = None,
-                 checkpoint: bool = True):
+                 checkpoint: bool = True,
+                 checkpoint_interval_minutes: int = 10.0):
         """Initializes the learner.
 
         Args:
-          value_feature: value function network
+          value_func: value function network
           instrumental_feature: dual function network.
           policy_net: policy network.
           discount: global discount.
           value_learning_rate: learning rate for the treatment_net update.
           instrumental_learning_rate: learning rate for the instrumental_net update.
+          value_reg: L2 regularizer for value net.
+          instrumental_reg: L2 regularizer for instrumental net.
           stage1_reg: ridge regularizer for stage 1 regression
           stage2_reg: ridge regularizer for stage 2 regression
           instrumental_iter: number of iteration for instrumental net
@@ -61,6 +68,7 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
           counter: Counter object for (potentially distributed) counting.
           logger: Logger object for writing logs to.
           checkpoint: boolean indicating whether to checkpoint the learner.
+          checkpoint_interval_minutes: checkpoint interval in minutes.
         """
 
         self._counter = counter or counting.Counter()
@@ -77,7 +85,6 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
 
         # Get an iterator over the dataset.
         self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
-        self.val_input = next(iter(dataset))  # TODO: Change this to true validation data
 
         self.value_func = value_func
         self.value_feature = value_func._feature
@@ -88,20 +95,31 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
         self._instrumental_func_optimizer = snt.optimizers.Adam(
             instrumental_learning_rate, beta1=0.5, beta2=0.9)
 
-        self._variables = [
-            value_func.trainable_variables,
-            instrumental_feature.trainable_variables,
-        ]
+        # Define additional variables.
+        self.stage1_weight = tf.Variable(
+            tf.zeros((instrumental_feature.feature_dim(),
+                      value_func.feature_dim()), dtype=tf.float32))
         self._num_steps = tf.Variable(0, dtype=tf.int32)
 
-        # Create a snapshotter object.
+        self._variables = [
+            self.value_func.trainable_variables,
+            self.instrumental_feature.trainable_variables,
+            self.stage1_weight,
+        ]
+
+        # Create a checkpointer object.
+        self._checkpointer = None
+        self._snapshotter = None
+
         if checkpoint:
+            self._checkpointer = tf2_savers.Checkpointer(
+                objects_to_save=self.state,
+                time_delta_minutes=checkpoint_interval_minutes,
+                checkpoint_ttl_seconds=_CHECKPOINT_TTL)
             self._snapshotter = tf2_savers.Snapshotter(
-                objects_to_save={'value_func': value_func,
-                                 'instrumental_feature': instrumental_feature,
+                objects_to_save={'value_func': self.value_func,
+                                 'instrumental_feature': self.instrumental_feature,
                                  }, time_delta_minutes=60.)
-        else:
-            self._snapshotter = None
 
     def update_batch(self):
         stage1_input = next(self._iterator)
@@ -112,8 +130,8 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
     def _step(self) -> Dict[str, tf.Tensor]:
         stage1_loss = None
         stage2_loss = None
-        # Pull out the data needed for updates/priorities.
         for _ in range(self.value_iter):
+            # Pull out the data needed for updates/priorities.
             stage1_input, stage2_input = self.update_batch()
             for _ in range(self.instrumental_iter // self.value_iter):
                 o_tm1, a_tm1, r_t, d_t, o_t = stage1_input[:5]
@@ -121,26 +139,30 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
 
             stage2_loss = self.update_value(stage1_input, stage2_input)
 
-        stage1_weight, stage2_weight = self.update_final_weight(stage1_input, stage2_input)
+        self.update_final_weight(stage1_input, stage2_input)
         self._num_steps.assign_add(1)
 
         # Compute the global norm of the gradients for logging.
         fetches = {'stage1_loss': stage1_loss, 'stage2_loss': stage2_loss}
-        if self.val_input is not None:
-            val_loss = self.cal_validation_err(stage1_weight, stage2_weight)
-            fetches["val_loss"] = val_loss
-
         return fetches
 
-    def cal_validation_err(self, stage1_weight, stage2_weight):
-        current_obs_val, action_val, reward_val = self.val_input.data[:3]
-        instrumental_feature = self.instrumental_feature(obs=current_obs_val, action=action_val,
-                                                         training=False)
-        predicted_feature = linear_reg_pred(instrumental_feature, stage1_weight)
-        predict = linear_reg_pred(predicted_feature, stage2_weight)
-        loss = tf.norm((tf.expand_dims(reward_val, -1) - predict)) ** 2
-        return loss
-
+    def cal_validation_err(self, valid_input):
+        """Return prediction MSE on the validation dataset."""
+        stage1_weight = self.stage1_weight
+        stage2_weight = self.value_func.weight
+        loss_sum = 0.
+        count = 0.
+        for sample in valid_input:
+            data = sample.data
+            current_obs, action, reward = data[:3]
+            instrumental_feature = self.instrumental_feature(obs=current_obs, action=action,
+                                                             training=False)
+            predicted_feature = linear_reg_pred(instrumental_feature, stage1_weight)
+            predict = linear_reg_pred(predicted_feature, stage2_weight)
+            loss = tf.norm((tf.expand_dims(reward, -1) - predict)) ** 2
+            loss_sum += loss / action.shape[0]
+            count += 1.
+        return loss_sum / count
 
     def update_instrumental(self, current_obs, action, reward, discount, next_obs):
         next_action = self.policy(next_obs)
@@ -152,7 +174,7 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
             feature = self.instrumental_feature(obs=current_obs, action=action, training=True)
             loss = linear_reg_loss(target, feature, self.stage1_reg)
             loss = loss + l2(self.instrumental_feature.trainable_variables)
-            loss /= current_obs.shape[0]
+            loss /= action.shape[0]
 
         gradient = tape.gradient(loss, self.instrumental_feature.trainable_variables)
         self._instrumental_func_optimizer.apply(gradient, self.instrumental_feature.trainable_variables)
@@ -179,7 +201,7 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
             predicted_feature = linear_reg_pred(instrumental_feature_2nd, stage1_weight)
             loss = linear_reg_loss(tf.expand_dims(reward_2nd, -1), predicted_feature, self.stage2_reg)
             loss = loss + l2(self.value_feature.trainable_variables)
-            loss /= current_obs_2nd.shape[0]
+            loss /= action_2nd.shape[0]
 
         gradient = tape.gradient(loss, self.value_feature.trainable_variables)
         self._value_func_optimizer.apply(gradient, self.value_feature.trainable_variables)
@@ -201,9 +223,10 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
         target_1st = add_const_col(self.value_feature(obs=current_obs_1st, action=action_1st,
                                                       training=True)) - self.discount * target_1st
         stage1_weight = fit_linear(target_1st, instrumental_feature_1st, self.stage1_reg)
+        self.stage1_weight.assign(stage1_weight)
         predicted_feature = linear_reg_pred(instrumental_feature_2nd, stage1_weight)
         stage2_weight = fit_linear(tf.expand_dims(reward_2nd, -1), predicted_feature, self.stage2_reg)
-        self.value_func._weight.assign(stage2_weight)
+        self.value_func.weight.assign(stage2_weight)
 
         return stage1_weight, stage2_weight
 
@@ -215,7 +238,9 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
         counts = self._counter.increment(steps=1)
         result.update(counts)
 
-        # Snapshot and attempt to write logs.
+        # Checkpoint and attempt to write the logs.
+        if self._checkpointer is not None:
+          self._checkpointer.save()
         if self._snapshotter is not None:
             self._snapshotter.save()
         if self._num_steps % 10 == 0:
@@ -228,9 +253,10 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
     def state(self):
         """Returns the stateful parts of the learner for checkpointing."""
         return {
-            'value_feature': self.value_feature,
+            'value_func': self.value_func,
             'instrumental_feature': self.instrumental_feature,
-            'value_opt': self._value_func_optimizer,
-            'dual_opt': self._instrumental_func_optimizer,
+            'stage1_weight': self.stage1_weight,
+            'value_func_optimizer': self._value_func_optimizer,
+            'instrumental_func_optimizer': self._instrumental_func_optimizer,
             'num_steps': self._num_steps
         }
