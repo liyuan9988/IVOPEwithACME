@@ -77,6 +77,7 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
 
         # Get an iterator over the dataset.
         self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
+        self.val_input = next(iter(dataset))  # TODO: Change this to true validation data
 
         self.value_func = value_func
         self.value_feature = value_func._feature
@@ -120,13 +121,26 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
 
             stage2_loss = self.update_value(stage1_input, stage2_input)
 
-        self.update_final_weight(stage1_input, stage2_input)
+        stage1_weight, stage2_weight = self.update_final_weight(stage1_input, stage2_input)
         self._num_steps.assign_add(1)
 
         # Compute the global norm of the gradients for logging.
         fetches = {'stage1_loss': stage1_loss, 'stage2_loss': stage2_loss}
+        if self.val_input is not None:
+            val_loss = self.cal_validation_err(stage1_weight, stage2_weight)
+            fetches["val_loss"] = val_loss
 
         return fetches
+
+    def cal_validation_err(self, stage1_weight, stage2_weight):
+        current_obs_val, action_val, reward_val = self.val_input.data[:3]
+        instrumental_feature = self.instrumental_feature(obs=current_obs_val, action=action_val,
+                                                         training=False)
+        predicted_feature = linear_reg_pred(instrumental_feature, stage1_weight)
+        predict = linear_reg_pred(predicted_feature, stage2_weight)
+        loss = tf.norm((tf.expand_dims(reward_val, -1) - predict)) ** 2
+        return loss
+
 
     def update_instrumental(self, current_obs, action, reward, discount, next_obs):
         next_action = self.policy(next_obs)
@@ -188,9 +202,10 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
                                                       training=True)) - self.discount * target_1st
         stage1_weight = fit_linear(target_1st, instrumental_feature_1st, self.stage1_reg)
         predicted_feature = linear_reg_pred(instrumental_feature_2nd, stage1_weight)
+        stage2_weight = fit_linear(tf.expand_dims(reward_2nd, -1), predicted_feature, self.stage2_reg)
+        self.value_func._weight.assign(stage2_weight)
 
-        self.value_func._weight.assign(
-            fit_linear(tf.expand_dims(reward_2nd, -1), predicted_feature, self.stage2_reg))
+        return stage1_weight, stage2_weight
 
     def step(self):
         # Do a batch of SGD.
