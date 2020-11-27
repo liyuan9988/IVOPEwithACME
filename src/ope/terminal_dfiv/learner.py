@@ -85,6 +85,7 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
 
         # Get an iterator over the dataset.
         self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
+        self.val_input = next(iter(dataset))  # TODO: Change this to true validation data
 
         self.value_func = value_func
         self.value_feature = value_func._feature
@@ -160,6 +161,7 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         stage1_loss = 0.
         stage2_loss = 0.
         pred_loss = 0.
+        val_loss = 0.
         # Pull out the data needed for updates/priorities.
 
         if self._num_steps < self._n_terminate_predictor_iter:
@@ -173,16 +175,39 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
                     stage1_loss = self.update_instrumental(o_tm1, a_tm1, r_t, d_t, o_t, d_tm1)
                 stage2_loss = self.update_value(stage1_input, stage2_input)
 
-            self.update_final_weight(stage1_input, stage2_input)
+            stage1_weight, stage2_weight = self.update_final_weight(stage1_input, stage2_input)
+            if self.val_input is not None:
+                val_loss = self.cal_validation_err(stage1_weight, stage2_weight)
+
         self._num_steps.assign_add(1)
 
         # Compute the global norm of the gradients for logging.
         fetches = {'stage1_loss': stage1_loss,
                    'stage2_loss': stage2_loss,
                    'pred_loss': pred_loss,
+                   'val_loss': val_loss
                    }
 
         return fetches
+
+    def cal_validation_err(self, stage1_weight, stage2_weight):
+        current_obs_val, action_val, reward_val, discount_val = self.val_input.data[:4]
+        discount_val = tf.expand_dims(discount_val, axis=1)
+        instrumental_feature = self.instrumental_feature(obs=current_obs_val, action=action_val,
+                                                         training=False) * discount_val
+        predicted_feature = linear_reg_pred(instrumental_feature, stage1_weight)
+        current_feature = add_const_col(self.value_feature(obs=current_obs_val, action=action_val, training=False))
+        non_terminate_prob = self.terminate_predictor(current_obs_val, action_val)
+        var_prob = non_terminate_prob * (1.0 - non_terminate_prob)
+
+        feature = current_feature - discount_val * self.discount * predicted_feature
+        pred = tf.matmul(feature, stage2_weight)
+        loss = tf.norm((tf.expand_dims(reward_val, -1) - pred)) ** 2
+        if not self.ignore_terminate_confounding:
+            future_q_val = tf.matmul(predicted_feature, stage2_weight) * self.discount
+            loss -= tf.reduce_sum(future_q_val * future_q_val * var_prob)
+
+        return loss
 
     def update_instrumental(self, current_obs, action, reward, discount, next_obs, d_tm1):
         next_action = self.policy(next_obs)
@@ -271,6 +296,7 @@ class TerminalDFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         current_feature = add_const_col(self.value_feature(obs=current_obs_2nd, action=action_2nd, training=True))
         stage2_weight, _ = self.cal_value_weight(predicted_feature, current_feature, stage2_input)
         self.value_func._weight.assign(stage2_weight)
+        return stage1_weight, stage2_weight
 
     def step(self):
         # Do a batch of SGD.
