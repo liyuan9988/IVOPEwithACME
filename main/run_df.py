@@ -66,7 +66,7 @@ def main(_):
         },
         'discount': 0.99,
     }
-    _, environment = load_data_and_env(problem_config['task_name'], problem_config['prob_param'])
+    _, _, environment = load_data_and_env(problem_config['task_name'], problem_config['prob_param'])
     environment_spec = specs.make_environment_spec(environment)
 
     # Create the networks to optimize.

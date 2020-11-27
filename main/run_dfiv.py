@@ -90,7 +90,9 @@ def main(_):
         'behavior_dataset_size': 180000,
         'discount': 0.99,
     }
-    dataset, environment = load_data_and_env(
+
+    # Load the offline dataset and environment.
+    dataset, _, environment = load_data_and_env(
         problem_config['task_name'], problem_config['prob_param'],
         dataset_path=FLAGS.dataset_path,
         batch_size=FLAGS.batch_size)
@@ -99,7 +101,6 @@ def main(_):
     # Create the networks to optimize.
     value_func, instrumental_feature = make_ope_networks(
         problem_config['task_name'], environment_spec)
-
 
     # Load pretrained target policy network.
     target_policy_net = load_policy_net(task_name=problem_config['task_name'],

@@ -105,13 +105,13 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
     def update_batch(self):
         stage1_input = next(self._iterator)
         stage2_input = next(self._iterator)
-        return stage1_input, stage2_input
+        return stage1_input.data, stage2_input.data
 
     def _get_d_tm1(self, data):
       if len(data) > 6:
         return data[6]
       else:
-        return tf.ones(data[0].shape[0], dtype=tf.float32)
+        return tf.ones(data[1].shape[0], dtype=tf.float32)
 
     @tf.function
     def _step(self) -> Dict[str, tf.Tensor]:
@@ -122,7 +122,7 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         for _ in range(self.value_iter):
             stage1_input, stage2_input = self.update_batch()
             for _ in range(self.instrumental_iter // self.value_iter):
-                o_tm1, a_tm1, r_t, d_t, o_t = stage1_input.data[:5]
+                o_tm1, a_tm1, r_t, d_t, o_t = stage1_input[:5]
                 d_tm1 = self._get_d_tm1(stage1_input)
                 stage1_loss = self.update_instrumental(o_tm1, a_tm1, r_t, d_t, o_t, d_tm1)
 
@@ -148,7 +148,7 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
             feature = d_tm1 * feature
             loss = linear_reg_loss(target, feature, self.stage1_reg)
             loss = loss + l2(self.instrumental_feature.trainable_variables)
-            loss /= current_obs.shape[0]
+            loss /= action.shape[0]
 
         gradient = tape.gradient(loss, self.instrumental_feature.trainable_variables)
         self._instrumental_func_optimizer.apply(gradient, self.instrumental_feature.trainable_variables)
@@ -156,9 +156,9 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         return loss
 
     def update_value(self, stage1_input, stage2_input):
-        current_obs_1st, action_1st, _, discount_1st, next_obs_1st = stage1_input.data[:5]
+        current_obs_1st, action_1st, _, discount_1st, next_obs_1st = stage1_input[:5]
         d_tm1_1st = self._get_d_tm1(stage1_input)
-        current_obs_2nd, action_2nd, reward_2nd = stage2_input.data[:3]
+        current_obs_2nd, action_2nd, reward_2nd = stage2_input[:3]
         d_tm1_2nd = self._get_d_tm1(stage2_input)
         next_action_1st = self.policy(next_obs_1st)
         discount_1st = tf.expand_dims(discount_1st, axis=1)
@@ -185,16 +185,16 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
             loss = linear_reg_loss(weight * tf.expand_dims(reward_2nd, -1), weight * predicted_feature, self.stage2_reg)
 
             loss = loss + l2(self.value_feature.trainable_variables)
-            loss /= current_obs_2nd.shape[0]
+            loss /= action_2nd.shape[0]
 
         gradient = tape.gradient(loss, self.value_feature.trainable_variables)
         self._value_func_optimizer.apply(gradient, self.value_feature.trainable_variables)
         return loss
 
     def update_final_weight(self, stage1_input, stage2_input):
-        current_obs_1st, action_1st, _, discount_1st, next_obs_1st = stage1_input.data[:5]
+        current_obs_1st, action_1st, _, discount_1st, next_obs_1st = stage1_input[:5]
         d_tm1_1st = self._get_d_tm1(stage1_input)
-        current_obs_2nd, action_2nd, reward_2nd = stage2_input.data[:3]
+        current_obs_2nd, action_2nd, reward_2nd = stage2_input[:3]
         d_tm1_2nd = self._get_d_tm1(stage2_input)
         next_action_1st = self.policy(next_obs_1st)
         discount_1st = tf.expand_dims(discount_1st, axis=1)

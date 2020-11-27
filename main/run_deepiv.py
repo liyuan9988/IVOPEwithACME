@@ -73,7 +73,7 @@ def main(_):
     }
 
     # Load the offline dataset and environment.
-    dataset, environment = load_data_and_env(
+    dataset, _, environment = load_data_and_env(
         problem_config['task_name'], problem_config['prob_param'],
         dataset_path=FLAGS.dataset_path,
         batch_size=FLAGS.batch_size)

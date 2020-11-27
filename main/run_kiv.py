@@ -42,6 +42,8 @@ flags.DEFINE_enum('task_class', 'control_suite',
 flags.DEFINE_string('target_policy_path', '', 'Path to target policy snapshot')
 
 # Agent flags
+flags.DEFINE_integer('batch_size', 1024, 'Batch size.')
+
 flags.DEFINE_float('stage1_reg', 1e-5, 'ridge regularizer for stage 1 regression')
 flags.DEFINE_float('stage2_reg', 1e-5, 'ridge regularizer for stage 2 regression')
 flags.DEFINE_integer('n_component', 512, 'Number of random Fourier features.')
@@ -75,9 +77,12 @@ def main(_):
         'behavior_dataset_size': 180000,
         'discount': 0.99,
     }
-    _, environment = load_data_and_env(
+
+    # Load the offline dataset and environment.
+    dataset, _, environment = load_data_and_env(
         problem_config['task_name'], problem_config['prob_param'],
-        dataset_path=FLAGS.dataset_path)
+        dataset_path=FLAGS.dataset_path,
+        batch_size=FLAGS.batch_size)
     environment_spec = specs.make_environment_spec(environment)
 
     task_gamma_map = {

@@ -1,10 +1,11 @@
+# pylint: disable=bad-indentation,line-too-long
 """Functions for shared evaluation among all methods."""
 
-from acme.tf import utils as tf2_utils
 from acme.agents.tf import actors
-
+from acme.tf import utils as tf2_utils
 import numpy as np
 import tensorflow as tf
+import tree
 
 
 def cal_mse(value_func, policy_net, environment, mse_samples, discount):
@@ -28,8 +29,8 @@ def cal_mse(value_func, policy_net, environment, mse_samples, discount):
             action = tf2_utils.add_batch_dim(action)
             mse_one = (reward - value_func(current_obs, action)) ** 2
             print(value_func(current_obs, action).numpy().squeeze())
-            print(f"reward = {reward}")
-            print("=====End Episode=====")
+            print(f'reward = {reward}')
+            print('=====End Episode=====')
 
         else:
             next_action = tf2_utils.add_batch_dim(actor.select_action(next_obs))
@@ -43,21 +44,29 @@ def cal_mse(value_func, policy_net, environment, mse_samples, discount):
     return mse.squeeze() / mse_samples
 
 
-def ope_evaluation(value_func, policy_net, environment, logger,
-                   num_init_samples, mse_samples=0, discount=0.99,
-                   counter=None):
+def ope_evaluation(value_func, policy_net, environment, num_init_samples,
+                   mse_samples=0, discount=0.99, counter=None, logger=None):
     """Run OPE evaluation."""
     mse = -1
     if mse_samples > 0:
         mse = cal_mse(value_func, policy_net, environment, mse_samples, discount)
 
     # Compute policy value from initial distribution.
-    q_0s = []
+    # q_0s = []
+    # for _ in range(num_init_samples):
+    #     timestep = environment.reset()
+    #     observation = tf2_utils.add_batch_dim(timestep.observation)
+    #     action = policy_net(observation)
+    #     q_0s.append(value_func(observation, action).numpy().squeeze())
+
+    init_obs = []
     for _ in range(num_init_samples):
         timestep = environment.reset()
-        observation = tf2_utils.add_batch_dim(timestep.observation)
-        action = policy_net(observation)
-        q_0s.append(value_func(observation, action).numpy().squeeze())
+        init_obs.append(timestep.observation)
+    init_obs = tf2_utils.stack_sequence_fields(init_obs)
+    init_obs = tree.map_structure(tf.convert_to_tensor, init_obs)
+    init_actions = policy_net(init_obs)
+    q_0s = value_func(init_obs, init_actions).numpy().squeeze()
 
     results = {
         'Bellman_Residual_MSE': mse,
@@ -67,4 +76,6 @@ def ope_evaluation(value_func, policy_net, environment, logger,
     if counter is not None:
         counts = counter.increment(steps=1)
         results.update(counts)
-    logger.write(results)
+    if logger is not None:
+        logger.write(results)
+    return results
