@@ -68,9 +68,9 @@ def main(_):
   }
 
   # Load the offline dataset and environment.
-  _, environment = load_data_and_env(problem_config['task_name'],
-                                     problem_config['prob_param'],
-                                     dataset_path=FLAGS.dataset_path)
+  _, _, environment = load_data_and_env(problem_config['task_name'],
+                                        problem_config['prob_param'],
+                                        dataset_path=FLAGS.dataset_path)
   environment_spec = specs.make_environment_spec(environment)
 
   # Load pretrained target policy network.

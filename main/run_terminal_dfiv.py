@@ -43,6 +43,8 @@ flags.DEFINE_enum('task_class', 'control_suite',
 flags.DEFINE_string('target_policy_path', '', 'Path to target policy snapshot')
 
 # Agent flags
+flags.DEFINE_integer('batch_size', 1024, 'Batch size.')
+
 flags.DEFINE_float('value_learning_rate', 1e-4, 'learning rate for the treatment_net update')
 flags.DEFINE_float('instrumental_learning_rate', 1e-3, 'learning rate for the instrumental_net update')
 flags.DEFINE_float('stage1_reg', 1e-5, 'ridge regularizer for stage 1 regression')
@@ -90,9 +92,12 @@ def main(_):
         'behavior_dataset_size': 9000,
         'discount': 0.99,
     }
-    _, environment = load_data_and_env(
+
+    # Load the offline dataset and environment.
+    dataset, _, environment = load_data_and_env(
         problem_config['task_name'], problem_config['prob_param'],
-        dataset_path=FLAGS.dataset_path)
+        dataset_path=FLAGS.dataset_path,
+        batch_size=FLAGS.batch_size)
     environment_spec = specs.make_environment_spec(environment)
 
     # Create the networks to optimize.
