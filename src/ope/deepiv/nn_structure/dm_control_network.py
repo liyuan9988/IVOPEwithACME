@@ -1,5 +1,4 @@
 # pylint: disable=bad-indentation,missing-class-docstring,missing-function-docstring
-import functools
 from typing import Sequence, Tuple
 
 from acme.specs import EnvironmentSpec
@@ -27,11 +26,9 @@ class MixtureDensity(snt.Module):
         self.obs_size = obs_size
         self.num_cat = num_cat
 
-        action_network = functools.partial(
-            tf.one_hot, depth=environment_spec.actions.num_values)
         self._net = snt.Sequential([
-            networks.CriticMultiplexer(action_network=action_network),
-            snt.nets.MLP(layer_sizes, activate_final=True)])
+            networks.CriticMultiplexer(),
+            networks.LayerNormMLP(layer_sizes, activate_final=True)])
 
         self._discount_logits = snt.Linear(1)
         self._mix_logits = snt.Linear(num_cat)
@@ -59,29 +56,24 @@ class MixtureDensity(snt.Module):
 
 class ValueFunction(snt.Module):
 
-    def __init__(self,
-                 environment_spec: EnvironmentSpec,
-                 layer_sizes: Sequence[int]):
+    def __init__(self, layer_sizes: Sequence[int]):
         super(ValueFunction, self).__init__()
-
-        action_network = functools.partial(
-            tf.one_hot, depth=environment_spec.actions.num_values)
         self._net = snt.Sequential([
-            networks.CriticMultiplexer(action_network=action_network),
-            snt.nets.MLP(layer_sizes, activate_final=True),
+            networks.CriticMultiplexer(),
+            networks.LayerNormMLP(layer_sizes, activate_final=True),
             snt.Linear(1)])
 
     def __call__(self, obs, action):
         return self._net(obs, action)
 
 
-def make_value_func_bsuite(environment_spec: EnvironmentSpec,
-                           value_layer_sizes: str = '50,50',
-                           density_layer_sizes: str = '50,50',
-                           num_cat: int = 10,
-                           ) -> Tuple[snt.Module, snt.Module]:
+def make_value_func_dm_control(environment_spec: EnvironmentSpec,
+                               value_layer_sizes: str = '512,512,256',
+                               density_layer_sizes: str = '512,512,256',
+                               num_cat: int = 10,
+                               ) -> Tuple[snt.Module, snt.Module]:
     layer_sizes = list(map(int, value_layer_sizes.split(',')))
-    value_function = ValueFunction(environment_spec, layer_sizes=layer_sizes)
+    value_function = ValueFunction(layer_sizes=layer_sizes)
 
     layer_sizes = list(map(int, density_layer_sizes.split(',')))
     mixture_density = MixtureDensity(environment_spec,

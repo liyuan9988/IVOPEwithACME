@@ -1,20 +1,23 @@
+# pylint: disable=bad-indentation,missing-class-docstring,missing-function-docstring
+from typing import Any, Dict, Tuple
+
 from acme.specs import EnvironmentSpec
 from acme.tf import utils as tf2_utils
 import sonnet as snt
-from typing import Tuple
-from .cartpole_swingup import make_value_func_cartpole
-from .bsuite_network import bsuite_make_value_func
+from .bsuite_network import make_value_func_bsuite
+from .dm_control_network import make_value_func_dm_control
 
 
 def make_ope_networks(task_id: str,
                       environment_spec: EnvironmentSpec,
-                      num_cat: int) -> Tuple[snt.Module, snt.Module]:
-
-    if task_id == "cartpole_swingup" or  task_id == "dm_control_cartpole_swingup":
-        value_func, mixture_density = make_value_func_cartpole()
+                      **network_params: Dict[str, Any],
+                      ) -> Tuple[snt.Module, snt.Module]:
+    if task_id.startswith("dm_control"):
+        value_func, mixture_density = make_value_func_dm_control(
+            environment_spec, **network_params)
     elif task_id.startswith("bsuite"):
-        value_func, mixture_density = bsuite_make_value_func(
-            environment_spec, num_cat)
+        value_func, mixture_density = make_value_func_bsuite(
+            environment_spec, **network_params)
     else:
         raise ValueError(f"task id {task_id} not known")
 
