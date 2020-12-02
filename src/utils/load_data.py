@@ -1,5 +1,6 @@
 # pylint: disable=bad-indentation,line-too-long,missing-function-docstring
 
+import functools
 from typing import Any, Dict
 from pathlib import Path
 from acme import specs
@@ -39,6 +40,7 @@ def load_data_and_env(task_name: str,
                       params: Dict[str, Any],
                       dataset_path: str,
                       batch_size: int,
+                      valid_batch_size: int = 1024,
                       shuffle: bool = True,  # Shuffle training dataset.
                       repeat: bool = True,  # Repeat training dataset.
                       max_dev_size: int = None):
@@ -57,6 +59,7 @@ def load_data_and_env(task_name: str,
             random_prob=noise_level,
             path=str(path),
             batch_size=batch_size,
+            valid_batch_size=valid_batch_size,
             num_shards=num_shards,
             num_valid_shards=num_valid_shards,
             shuffle=shuffle,
@@ -74,6 +77,7 @@ def load_data_and_env(task_name: str,
             root_path=str(root_path),
             data_path=str(data_path),
             batch_size=batch_size,
+            valid_batch_size=valid_batch_size,
             num_shards=num_shards,
             num_valid_shards=num_valid_shards,
             shuffle=shuffle,
@@ -82,7 +86,7 @@ def load_data_and_env(task_name: str,
         raise ValueError(f"task name {task_name} is unknown")
     if max_dev_size is not None:
       valid_dataset = valid_dataset.take(
-          (max_dev_size + batch_size - 1) // batch_size)
+          (max_dev_size + valid_batch_size - 1) // valid_batch_size)
     return train_dataset, valid_dataset, environment
 
 
@@ -101,7 +105,10 @@ def load_policy_net(
         run_id = params["run_id"]
         path = dataset_path.joinpath(f"bsuite/snapshots/{bsuite_id}_{env_noise_level}/{run_id}_full")
         policy_net = tf.saved_model.load(str(path))
+        observation_network = tf2_utils.to_sonnet_module(functools.partial(
+            tf.reshape, shape=(-1,) + environment_spec.observations.shape))
         policy_net = snt.Sequential([
+            observation_network,
             policy_net,
             lambda q: trfl.epsilon_greedy(q, epsilon=policy_noise_level).sample(),
         ])
