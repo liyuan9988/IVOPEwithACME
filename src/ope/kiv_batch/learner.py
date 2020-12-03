@@ -60,6 +60,9 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
         self.stage2_reg = stage2_reg
         self.discount = discount
 
+        self.stage1_weight = None
+        self.stage2_weight = None
+
         # Get an iterator over the dataset.
         self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types
 
@@ -115,13 +118,14 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
         b = tf.matmul(instrumental_feature_1st, target_1st, transpose_a=True)
         return A / nData, b / nData
 
-    def cal_stage1_loss(self, stage1_input, stage1_weight):
+    def cal_stage1_loss(self, stage1_input):
+        assert self.stage1_weight is not None
         current_obs_1st, action_1st, _, discount_1st, next_obs_1st = stage1_input.data[:5]
         next_action_1st = self.policy(next_obs_1st)
         discount_1st = tf.expand_dims(discount_1st, axis=1)
         target_1st = discount_1st * self.value_feature(obs=next_obs_1st, action=next_action_1st)
         instrumental_feature_1st = self.instrumental_feature(obs=current_obs_1st, action=action_1st)
-        pred = linear_reg_pred(instrumental_feature_1st, stage1_weight)
+        pred = linear_reg_pred(instrumental_feature_1st, self.stage1_weight)
         return tf.reduce_sum((pred - target_1st) ** 2).numpy()
 
     def cal_stage2_weight(self, stage2_input, stage1_weight):
@@ -139,15 +143,18 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
         b = tf.matmul(predicted_feature_2nd, reward_2nd, transpose_a=True)
         return A / nData, b / nData
 
-    def cal_stage2_loss(self, stage2_input, stage1_weight, stage2_weight):
+    def cal_stage2_loss(self, stage2_input):
+        assert self.stage1_weight is not None
+        assert self.stage2_weight is not None
+
         current_obs_2nd, action_2nd, reward_2nd, _, _ = stage2_input.data[:5]
         reward_2nd = tf.expand_dims(reward_2nd, axis=1)
         instrumental_feature_2nd = self.instrumental_feature(obs=current_obs_2nd, action=action_2nd)
-        predicted_feature_2nd = linear_reg_pred(instrumental_feature_2nd, stage1_weight)
+        predicted_feature_2nd = linear_reg_pred(instrumental_feature_2nd, self.stage1_weight)
         current_feature_2nd = self.value_feature(obs=current_obs_2nd, action=action_2nd)
         predicted_feature_2nd = current_feature_2nd - self.discount * predicted_feature_2nd
 
-        pred = linear_reg_pred(predicted_feature_2nd, stage2_weight)
+        pred = linear_reg_pred(predicted_feature_2nd, self.stage2_weight)
         return tf.reduce_sum((pred - reward_2nd) ** 2).numpy()
 
     def update_final_weight(self):
@@ -163,12 +170,12 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
             A = A + A_new
             b = b + b_new
 
-        stage1_weight = tf.linalg.solve(A, b)
+        self.stage1_weight = tf.linalg.solve(A, b)
         # calculate training loss for the last batch
         # it may be replaced to validation data
         stage1_loss = None
         if data is not None:
-            stage1_loss = self.cal_stage1_loss(data, stage1_weight)
+            stage1_loss = self.cal_stage1_loss(data)
 
         # calculate stage2 weights
         A = tf.zeros((value_feature_dim, value_feature_dim))
@@ -176,18 +183,18 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
         data = None
         for i in range(self.stage1_batch):
             data = next(self._iterator)
-            A_new, b_new = self.cal_stage2_weight(data, stage1_weight)
+            A_new, b_new = self.cal_stage2_weight(data, self.stage1_weight)
             A = A + A_new
             b = b + b_new
 
-        stage2_weight = tf.linalg.solve(A, b)
+        self.stage2_weight = tf.linalg.solve(A, b)
         # calculate training loss for the last batch
         # it may be replaced to validation data
         stage2_loss = None
         if data is not None:
-            stage2_loss = self.cal_stage2_loss(data, stage1_weight, stage2_weight)
+            stage2_loss = self.cal_stage2_loss(data)
 
-        self.value_func._weight.assign(stage2_weight)
+        self.value_func._weight.assign(self.stage2_weight)
         return stage1_loss, stage2_loss
 
     def step(self):
