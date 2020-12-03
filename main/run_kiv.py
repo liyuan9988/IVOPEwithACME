@@ -30,6 +30,7 @@ from src.utils import generate_train_data
 from src.utils import load_data_and_env
 from src.utils import load_policy_net
 from src.utils import ope_evaluation
+from src.utils import get_bsuite_median
 
 flags.DEFINE_string(
     'dataset_path',
@@ -85,23 +86,6 @@ def main(_):
         batch_size=FLAGS.batch_size)
     environment_spec = specs.make_environment_spec(environment)
 
-    task_gamma_map = {
-        'bsuite_catch': 0.25,
-        'bsuite_mountain_car': 0.5,
-        'bsuite_cartpole': 0.44,
-    }
-    gamma = FLAGS.gamma or task_gamma_map[problem_config['task_name']]
-
-    # Create the networks to optimize.
-    value_func, instrumental_feature = make_ope_networks(
-        problem_config['task_name'], environment_spec,
-        n_component=FLAGS.n_component, gamma=gamma)
-
-    # Load pretrained target policy network.
-    target_policy_net = load_policy_net(task_name=problem_config['task_name'],
-                                        params=problem_config['target_policy_param'],
-                                        environment_spec=environment_spec,
-                                        dataset_path=FLAGS.dataset_path)
 
     if problem_config['behavior_dataset_size'] > 0:
       # Use behavior policy to generate an off-policy dataset and replace
@@ -115,6 +99,27 @@ def main(_):
           dataset_size=problem_config['behavior_dataset_size'],
           batch_size=problem_config['behavior_dataset_size'] // 4,
           shuffle=False)
+
+    """
+        task_gamma_map = {
+            'bsuite_catch': 0.25,
+            'bsuite_mountain_car': 0.5,
+            'bsuite_cartpole': 0.44,
+        }
+        gamma = FLAGS.gamma or task_gamma_map[problem_config['task_name']]
+    """
+    gamma = get_bsuite_median(dataset, environment_spec.actions.num_values)
+
+    # Create the networks to optimize.
+    value_func, instrumental_feature = make_ope_networks(
+        problem_config['task_name'], environment_spec,
+        n_component=FLAGS.n_component, gamma=gamma)
+
+    # Load pretrained target policy network.
+    target_policy_net = load_policy_net(task_name=problem_config['task_name'],
+                                        params=problem_config['target_policy_param'],
+                                        environment_spec=environment_spec,
+                                        dataset_path=FLAGS.dataset_path)
 
     counter = counting.Counter()
     learner_counter = counting.Counter(counter, prefix='learner')
