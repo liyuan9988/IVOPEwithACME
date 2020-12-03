@@ -10,6 +10,6 @@ def get_bsuite_median(dataset, n_action):
     flat = snt.Flatten()
     inputs = tf.concat([flat(obs), action_aug], axis=1)
     arr = inputs.numpy()
-    dists = cdist(arr, arr)
+    dists = cdist(arr, arr, "sqeuclidean")
     return 1.0 / np.median(dists)
 
