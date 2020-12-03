@@ -152,8 +152,8 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
 
     def update_final_weight(self):
         # calculate stage1 weights
-        instrumental_feature_dim = self.instrumental_feature.rff.n_component
-        value_feature_dim = self.value_feature.rff.n_component
+        instrumental_feature_dim = self.instrumental_feature.rff.n_components
+        value_feature_dim = self.value_feature.rff.n_components
         A = tf.zeros((instrumental_feature_dim, instrumental_feature_dim))
         b = tf.zeros((instrumental_feature_dim, value_feature_dim))
         data = None
@@ -176,7 +176,7 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
         data = None
         for i in range(self.stage1_batch):
             data = next(self._iterator)
-            A_new, b_new = self.cal_stage2_weights(data)
+            A_new, b_new = self.cal_stage2_weight(data, stage1_weight)
             A = A + A_new
             b = b + b_new
 
@@ -187,6 +187,7 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
         if data is not None:
             stage2_loss = self.cal_stage2_loss(data, stage1_weight, stage2_weight)
 
+        self.value_func._weight.assign(stage2_weight)
         return stage1_loss, stage2_loss
 
     def step(self):
