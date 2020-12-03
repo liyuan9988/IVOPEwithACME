@@ -24,8 +24,8 @@ import sys
 ROOT_PATH = pathlib.Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT_PATH))
 
-from src.ope.kiv import KIVLearner
-from src.ope.kiv import make_ope_networks
+from src.ope.kiv_batch import KIVLearner
+from src.ope.kiv_batch import make_ope_networks
 from src.utils import generate_train_data
 from src.utils import load_data_and_env
 from src.utils import load_policy_net
@@ -113,7 +113,7 @@ def main(_):
           dataset_path=FLAGS.dataset_path,
           environment=environment,
           dataset_size=problem_config['behavior_dataset_size'],
-          batch_size=problem_config['behavior_dataset_size'] // 2,
+          batch_size=problem_config['behavior_dataset_size'] // 4,
           shuffle=False)
 
     counter = counting.Counter()
@@ -127,6 +127,8 @@ def main(_):
         discount=problem_config['discount'],
         stage1_reg=FLAGS.stage1_reg,
         stage2_reg=FLAGS.stage2_reg,
+        stage1_batch=2,
+        stage2_batch=2,
         dataset=dataset,
         counter=learner_counter)
 
