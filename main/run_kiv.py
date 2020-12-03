@@ -24,12 +24,13 @@ import sys
 ROOT_PATH = pathlib.Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT_PATH))
 
-from src.ope.kiv import KIVLearner
-from src.ope.kiv import make_ope_networks
+from src.ope.kiv_batch import KIVLearner
+from src.ope.kiv_batch import make_ope_networks
 from src.utils import generate_train_data
 from src.utils import load_data_and_env
 from src.utils import load_policy_net
 from src.utils import ope_evaluation
+from src.utils import get_bsuite_median
 
 flags.DEFINE_string(
     'dataset_path',
@@ -85,12 +86,29 @@ def main(_):
         batch_size=FLAGS.batch_size)
     environment_spec = specs.make_environment_spec(environment)
 
-    task_gamma_map = {
-        'bsuite_catch': 0.25,
-        'bsuite_mountain_car': 0.5,
-        'bsuite_cartpole': 0.44,
-    }
-    gamma = FLAGS.gamma or task_gamma_map[problem_config['task_name']]
+
+    if problem_config['behavior_dataset_size'] > 0:
+      # Use behavior policy to generate an off-policy dataset and replace
+      # the pre-generated offline dataset.
+      logging.warning('Ignore offline dataset')
+      dataset = generate_train_data(
+          task_name=problem_config['task_name'],
+          behavior_policy_param=problem_config['behavior_policy_param'],
+          dataset_path=FLAGS.dataset_path,
+          environment=environment,
+          dataset_size=problem_config['behavior_dataset_size'],
+          batch_size=problem_config['behavior_dataset_size'] // 4,
+          shuffle=False)
+
+    """
+        task_gamma_map = {
+            'bsuite_catch': 0.25,
+            'bsuite_mountain_car': 0.5,
+            'bsuite_cartpole': 0.44,
+        }
+        gamma = FLAGS.gamma or task_gamma_map[problem_config['task_name']]
+    """
+    gamma = get_bsuite_median(dataset, environment_spec.actions.num_values)
 
     # Create the networks to optimize.
     value_func, instrumental_feature = make_ope_networks(
@@ -103,19 +121,6 @@ def main(_):
                                         environment_spec=environment_spec,
                                         dataset_path=FLAGS.dataset_path)
 
-    if problem_config['behavior_dataset_size'] > 0:
-      # Use behavior policy to generate an off-policy dataset and replace
-      # the pre-generated offline dataset.
-      logging.warning('Ignore offline dataset')
-      dataset = generate_train_data(
-          task_name=problem_config['task_name'],
-          behavior_policy_param=problem_config['behavior_policy_param'],
-          dataset_path=FLAGS.dataset_path,
-          environment=environment,
-          dataset_size=problem_config['behavior_dataset_size'],
-          batch_size=problem_config['behavior_dataset_size'] // 2,
-          shuffle=False)
-
     counter = counting.Counter()
     learner_counter = counting.Counter(counter, prefix='learner')
 
@@ -127,6 +132,8 @@ def main(_):
         discount=problem_config['discount'],
         stage1_reg=FLAGS.stage1_reg,
         stage2_reg=FLAGS.stage2_reg,
+        stage1_batch=2,
+        stage2_batch=2,
         dataset=dataset,
         counter=learner_counter)
 
