@@ -150,7 +150,8 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
         """Return prediction MSE on the validation dataset."""
         stage1_weight = self.stage1_weight
         stage2_weight = self.value_func.weight
-        loss_sum = 0.
+        se_sum = 0.
+        se2_sum = 0.
         count = 0.
         for sample in valid_input:
             data = sample.data
@@ -159,10 +160,14 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
                                                              training=False)
             predicted_feature = linear_reg_pred(instrumental_feature, stage1_weight)
             predict = linear_reg_pred(predicted_feature, stage2_weight)
-            loss = tf.norm((tf.expand_dims(reward, -1) - predict)) ** 2
-            loss_sum += loss / action.shape[0]
-            count += 1.
-        return loss_sum / count
+
+            sq_err = tf.square(tf.expand_dims(reward, -1) - predict)
+            se_sum += tf.reduce_sum(sq_err)
+            se2_sum += tf.reduce_sum(tf.square(sq_err))
+            count += tf.cast(sq_err.shape[0], tf.float32)
+        mse = se_sum / count
+        mse_err_std = tf.sqrt((se2_sum / count - mse ** 2) / count)
+        return mse, mse_err_std
 
     def update_instrumental(self, current_obs, action, reward, discount, next_obs):
         next_action = self.policy(next_obs)
@@ -258,5 +263,6 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
             'stage1_weight': self.stage1_weight,
             'value_func_optimizer': self._value_func_optimizer,
             'instrumental_func_optimizer': self._instrumental_func_optimizer,
-            'num_steps': self._num_steps
+            'num_steps': self._num_steps,
+            'counter': self._counter,
         }
