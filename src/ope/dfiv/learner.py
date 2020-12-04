@@ -157,8 +157,9 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
         """Return prediction MSE on the validation dataset."""
         stage1_weight = self.stage1_weight
         stage2_weight = self.value_func.weight
-        loss_sum = 0.
-        count = 0.
+        se_sum = 0.
+        se2_sum = 0.
+        weight_sum = 0.
         for sample in valid_input:
             data = sample.data
             current_obs, action, reward = data[:3]
@@ -173,11 +174,14 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
             predict = linear_reg_pred(predicted_feature, stage2_weight)
 
             weight = d_tm1 + (1.0 - d_tm1) * tf.convert_to_tensor(self.d_tm1_weight, dtype=tf.float32)
-            loss = tf.norm(weight * (tf.expand_dims(reward, -1) - predict)) ** 2
-
-            loss_sum += loss / action.shape[0]
-            count += 1.
-        return loss_sum / count
+            weight = tf.square(weight)
+            sq_err = tf.square(tf.expand_dims(reward, -1) - predict)
+            se_sum += tf.reduce_sum(weight * sq_err)
+            se2_sum += tf.reduce_sum(weight * tf.square(sq_err))
+            weight_sum += tf.reduce_sum(weight)
+        mse = se_sum / weight_sum
+        mse_err_std = tf.sqrt((se2_sum / weight_sum - mse ** 2) / weight_sum)
+        return mse, mse_err_std
 
     def update_instrumental(self, current_obs, action, reward, discount, next_obs, d_tm1):
         next_action = self.policy(next_obs)
@@ -281,8 +285,7 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
           self._checkpointer.save()
         if self._snapshotter is not None:
             self._snapshotter.save()
-        if self._num_steps % 10 == 0:
-            self._logger.write(result)
+        self._logger.write(result)
 
     def get_variables(self, names: List[str]) -> List[np.ndarray]:
         return tf2_utils.to_numpy(self._variables)
@@ -296,5 +299,6 @@ class DFIVLearner(acme.Learner, tf2_savers.TFSaveable):
             'stage1_weight': self.stage1_weight,
             'value_func_optimizer': self._value_func_optimizer,
             'instrumental_func_optimizer': self._instrumental_func_optimizer,
-            'num_steps': self._num_steps
+            'num_steps': self._num_steps,
+            'counter': self._counter,
         }
