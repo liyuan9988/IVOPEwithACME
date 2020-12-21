@@ -44,6 +44,7 @@ flags.DEFINE_string('target_policy_path', '', 'Path to target policy snapshot')
 
 # Agent flags
 flags.DEFINE_integer('batch_size', 1024, 'Batch size.')
+flags.DEFINE_integer('max_dev_size', 10*1024, 'Maximum dev dataset size.')
 
 flags.DEFINE_float('stage1_reg', 1e-5, 'ridge regularizer for stage 1 regression')
 flags.DEFINE_float('stage2_reg', 1e-5, 'ridge regularizer for stage 2 regression')
@@ -80,12 +81,13 @@ def main(_):
     }
 
     # Load the offline dataset and environment.
-    dataset, _, environment = load_data_and_env(
+    dataset, dev_dataset, environment = load_data_and_env(
         problem_config['task_name'], problem_config['prob_param'],
         dataset_path=FLAGS.dataset_path,
-        batch_size=FLAGS.batch_size)
+        max_dev_size=FLAGS.max_dev_size,
+        shuffle=False,
+        repeat=False)
     environment_spec = specs.make_environment_spec(environment)
-
 
     if problem_config['behavior_dataset_size'] > 0:
       # Use behavior policy to generate an off-policy dataset and replace
@@ -99,6 +101,7 @@ def main(_):
           dataset_size=problem_config['behavior_dataset_size'],
           batch_size=problem_config['behavior_dataset_size'] // 4,
           shuffle=False)
+      dev_dataset = None
 
     """
         task_gamma_map = {
@@ -108,7 +111,9 @@ def main(_):
         }
         gamma = FLAGS.gamma or task_gamma_map[problem_config['task_name']]
     """
-    gamma = get_bsuite_median(dataset, environment_spec.actions.num_values)
+
+    gamma = utils.get_median(
+        problem_config['task_name'], environment_spec, dataset)
 
     # Create the networks to optimize.
     value_func, instrumental_feature = make_ope_networks(
@@ -116,15 +121,19 @@ def main(_):
         n_component=FLAGS.n_component, gamma=gamma)
 
     # Load pretrained target policy network.
-    target_policy_net = load_policy_net(task_name=problem_config['task_name'],
-                                        params=problem_config['target_policy_param'],
-                                        environment_spec=environment_spec,
-                                        dataset_path=FLAGS.dataset_path)
+    target_policy_net = load_policy_net(
+        task_name=problem_config['task_name'],
+        params=problem_config['target_policy_param'],
+        environment_spec=environment_spec,
+        dataset_path=FLAGS.dataset_path)
 
     counter = counting.Counter()
     learner_counter = counting.Counter(counter, prefix='learner')
 
     # The learner updates the parameters (and initializes them).
+    num_batches = len(dataset)
+    stage1_batch = num_batches // 2
+    stage2_batch = num_batches - stage1_batch
     learner = KIVLearner(
         value_func=value_func,
         instrumental_feature=instrumental_feature,
@@ -132,22 +141,25 @@ def main(_):
         discount=problem_config['discount'],
         stage1_reg=FLAGS.stage1_reg,
         stage2_reg=FLAGS.stage2_reg,
-        stage1_batch=2,
-        stage2_batch=2,
+        stage1_batch=stage1_batch,
+        stage2_batch=stage2_batch,
         dataset=dataset,
+        valid_dataset=dev_dataset,
         counter=learner_counter)
 
     eval_logger = loggers.TerminalLogger('eval')
 
     while True:
         learner.step()
-        ope_evaluation(value_func=value_func,
-                       policy_net=target_policy_net,
-                       environment=environment,
-                       logger=eval_logger,
-                       num_init_samples=FLAGS.evaluate_init_samples,
-                       mse_samples=18,
-                       discount=problem_config['discount'])
+        results = {'gamma': gamma}
+        results.update(ope_evaluation(
+            value_func=value_func,
+            policy_net=target_policy_net,
+            environment=environment,
+            num_init_samples=FLAGS.evaluate_init_samples,
+            mse_samples=18,
+            discount=problem_config['discount']))
+        eval_logger.write(results)
         if learner.state['num_steps'] >= FLAGS.max_steps:
             break
 
