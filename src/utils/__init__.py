@@ -6,5 +6,4 @@ from .evaluation import ope_evaluation
 from .generate_data import generate_train_data
 from .load_data import load_data_and_env
 from .load_data import load_policy_net
-from .bandwidth_selection import get_bsuite_median
-
+from .bandwidth_selection import get_median

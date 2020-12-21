@@ -1,10 +1,10 @@
 # pylint: disable=bad-indentation,missing-class-docstring,missing-function-docstring
-import functools
 from typing import Tuple
-import sonnet as snt
-import tensorflow as tf
+
 from acme.tf import networks
 import numpy as np
+import sonnet as snt
+import tensorflow as tf
 
 
 @snt.allow_empty_variables
@@ -35,12 +35,10 @@ class RandomFourierFeature(snt.Module):
 @snt.allow_empty_variables
 class InstrumentalFeature(snt.Module):
 
-    def __init__(self, environment_spec, n_component, gamma):
+    def __init__(self, n_component, gamma):
         super(InstrumentalFeature, self).__init__()
-        action_network = functools.partial(
-            tf.one_hot, depth=environment_spec.actions.num_values)
         self._net = snt.Sequential([
-            networks.CriticMultiplexer(action_network=action_network),
+            networks.CriticMultiplexer(),
             RandomFourierFeature(n_component=n_component, gamma=gamma)])
         self._feature_dim = n_component
 
@@ -55,12 +53,10 @@ class InstrumentalFeature(snt.Module):
 @snt.allow_empty_variables
 class ValueFeature(snt.Module):
 
-    def __init__(self, environment_spec, n_component, gamma):
+    def __init__(self, n_component, gamma):
         super(ValueFeature, self).__init__()
-        action_network = functools.partial(
-            tf.one_hot, depth=environment_spec.actions.num_values)
         self._net = snt.Sequential([
-            networks.CriticMultiplexer(action_network=action_network),
+            networks.CriticMultiplexer(),
             RandomFourierFeature(n_component=n_component, gamma=gamma)])
         self._feature_dim = n_component
 
@@ -75,10 +71,9 @@ class ValueFeature(snt.Module):
 @snt.allow_empty_variables
 class ValueFunction(snt.Module):
 
-    def __init__(self, environment_spec, n_component, gamma):
+    def __init__(self, n_component, gamma):
         super(ValueFunction, self).__init__()
-        self._feature = ValueFeature(
-            environment_spec, n_component=n_component, gamma=gamma)
+        self._feature = ValueFeature(n_component=n_component, gamma=gamma)
         self._weight = tf.Variable(tf.zeros((n_component, 1), dtype=tf.float32))
 
     def __call__(self, obs, action):
@@ -89,11 +84,10 @@ class ValueFunction(snt.Module):
         return self._weight
 
 
-def make_value_func_bsuite(environment_spec,
-                           n_component=100,
-                           gamma=10.0) -> Tuple[snt.Module, snt.Module]:
+def make_value_func_dm_control(n_component=100,
+                               gamma=10.0) -> Tuple[snt.Module, snt.Module]:
     value_function = ValueFunction(
-        environment_spec, n_component=n_component, gamma=gamma)
+        n_component=n_component, gamma=gamma)
     instrumental_feature = InstrumentalFeature(
-        environment_spec, n_component=n_component, gamma=gamma)
+        n_component=n_component, gamma=gamma)
     return value_function, instrumental_feature
