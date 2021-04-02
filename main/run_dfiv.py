@@ -113,7 +113,7 @@ def main(_):
           environment=environment,
           dataset_size=problem_config['behavior_dataset_size'],
           batch_size=problem_config['behavior_dataset_size'] // 2,
-          shuffle=False,
+          shuffle=True,
           include_terminal=FLAGS.include_terminal,
           ignore_d_tm1=FLAGS.ignore_d_tm1)
       dev_dataset = None
