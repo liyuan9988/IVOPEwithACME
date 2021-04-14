@@ -17,6 +17,7 @@ from acme.tf import utils as tf2_utils
 from acme.utils import counting
 from acme.utils import loggers
 import ml_collections as collections
+from ml_collections.config_flags import config_flags
 import sonnet as snt
 import tensorflow.compat.v2 as tf
 
@@ -34,8 +35,6 @@ flags.DEFINE_string(
     str(ROOT_PATH.joinpath('offline_dataset').joinpath('stochastic')),
     'Path to offline dataset directory.')
 
-FLAGS = flags.FLAGS
-
 
 def get_config():
   """Algorithm config."""
@@ -44,15 +43,16 @@ def get_config():
   config.problem_config = collections.ConfigDict(dict(
       task_name='bsuite_cartpole',
       prob_param=dict(
-          noise_level=0.2,
+          noise_level=0.2,  # Valid values: 0.0, 0.1, 0.2, 0.3, 0.4, 0.5
           run_id=0),
       target_policy_param=dict(
-          env_noise_level=0.2,
+          env_noise_level=0.2,  # Has to be the same as
+                                # prob_param.env_noise_level.
           policy_noise_level=0.1,
           run_id=1),
       behavior_policy_param=dict(
           env_noise_level=0.2,
-          policy_noise_level=0.2,
+          policy_noise_level=0.3,
           run_id=1),
       behavior_dataset_size=0,  # 180000,
       discount=0.99))
@@ -61,10 +61,10 @@ def get_config():
       batch_size=1024,
       evaluate_every=100,  # Evaluation period.
       evaluate_init_samples=1000,  # Number of initial samples for evaluation.
-      compute_dev_every=None,  # Period to compute dev set TD error and f for
-                               # hyper-parameter selection, if not None.
+      compute_dev_every=10000,  # Period to compute dev set TD error and f for
+                                # hyper-parameter selection, if not None.
       max_dev_size=10*1024,  # Take at most max_dev_size data items for dev set.
-      max_steps=None,
+      max_steps=200000,
       ))
 
   config.network_config = collections.ConfigDict(dict(
@@ -76,13 +76,13 @@ def get_config():
   config.learner_config = collections.ConfigDict(dict(
       DeepGMMLearner=collections.ConfigDict(dict(
           tilde_critic_update_period=1,
-          critic_lr=1e-4,
-          critic_beta1=0.5,
-          critic_beta2=0.9,
-          f_lr=1e-3,  # 3e-4, 1e-3, 3e-3
-          f_lr_multiplier=None,
-          f_beta1=0.5,
-          f_beta2=0.9,
+          critic_lr=3e-4,
+          critic_beta1=0.0,
+          critic_beta2=0.01,
+          f_lr=None,
+          f_lr_multiplier=1.0,
+          f_beta1=0.0,
+          f_beta2=0.01,
           clipping=True,
           clipping_action=False,
           bre_check_period=300,  # Bellman residual error check.
@@ -92,8 +92,8 @@ def get_config():
           critic_lr=1e-4,
           critic_beta1=0.,
           critic_beta2=0.01,
-          f_lr=1e-3,  # 3e-4, 1e-3, 3e-3
-          f_lr_multiplier=None,
+          f_lr=None,
+          f_lr_multiplier=1.0,
           f_beta1=0.,
           f_beta2=0.01,
           critic_regularizer=0.5,
@@ -109,8 +109,8 @@ def get_config():
           critic_lr=1e-4,
           critic_beta1=0.,
           critic_beta2=0.01,
-          f_lr=1e-3,  # 3e-4, 1e-3, 3e-3
-          f_lr_multiplier=None,
+          f_lr=None,
+          f_lr_multiplier=1.0,
           f_beta1=0.,
           f_beta2=0.01,
           f_regularizer=1.0,
@@ -121,29 +121,12 @@ def get_config():
           bre_check_period=300,  # Bellman residual error check.
           bre_check_num_actions=20,  # Number of sampled actions.
           )),
-      DeepGMMLearnerBase=collections.ConfigDict(dict(
-          use_tilde_critic=False,
-          tilde_critic_update_period=1,
-          critic_lr=1e-4,
-          critic_beta1=0.5,
-          critic_beta2=0.9,
-          f_lr=1e-3,  # 3e-4, 1e-3, 3e-3
-          f_lr_multiplier=None,
-          f_beta1=0.5,
-          f_beta2=0.9,
-          critic_regularizer=0.0,
-          f_regularizer=1.0,  # Ignored if use_tilde_critic = True
-          critic_ortho_regularizer=0.0,
-          f_ortho_regularizer=0.0,
-          critic_l2_regularizer=0.0,
-          f_l2_regularizer=0.0,
-          clipping=True,
-          clipping_action=False,
-          bre_check_period=300,  # Bellman residual error check.
-          bre_check_num_actions=20,  # Number of sampled actions.
-          )),
       ))
   return config
+
+
+config_flags.DEFINE_config_dict('config', get_config(), 'ConfigDict instance.')
+FLAGS = flags.FLAGS
 
 
 def make_networks(task_name, action_spec, **net_params):
@@ -197,7 +180,7 @@ def make_networks(task_name, action_spec, **net_params):
 
 
 def main(_):
-  config = get_config()
+  config = FLAGS.config
   problem_config = config.problem_config
   agent_config = config.agent_config
   network_config = config.network_config
@@ -294,7 +277,6 @@ def main(_):
           environment=environment,
           logger=eval_logger,
           num_init_samples=agent_config.evaluate_init_samples,
-          mse_samples=18,
           discount=problem_config.discount,
           counter=eval_counter)
 

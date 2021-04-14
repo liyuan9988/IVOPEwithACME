@@ -6,17 +6,10 @@ from absl import flags
 from absl import logging
 
 from acme import specs
-from acme.agents.tf import actors
-from acme.agents.tf.bc import learning
-from acme.tf import networks as acme_nets
-from acme.tf import utils as tf2_utils
 from acme.utils import counting
 from acme.utils import loggers
-
-import numpy as np
-import sonnet as snt
-import tensorflow as tf
-import trfl
+import ml_collections as collections
+from ml_collections.config_flags import config_flags
 
 import pathlib
 import sys
@@ -24,13 +17,8 @@ import sys
 ROOT_PATH = pathlib.Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT_PATH))
 
-from src.ope.kiv_batch import KIVLearner
-from src.ope.kiv_batch import make_ope_networks
-from src.utils import generate_train_data
-from src.utils import load_data_and_env
-from src.utils import load_policy_net
-from src.utils import ope_evaluation
-from src.utils import get_bsuite_median
+from src import utils
+from src.ope import kiv_batch
 
 flags.DEFINE_string(
     'dataset_path',
@@ -58,32 +46,43 @@ flags.DEFINE_integer('max_steps', 1, 'Max number of steps.')
 FLAGS = flags.FLAGS
 
 
-def main(_):
-    # Load the offline dataset and environment.
-    problem_config = {
+def get_problem_config():
+    """Problem config."""
+    problem_config = collections.ConfigDict({
         'task_name': 'bsuite_cartpole',
         'prob_param': {
             'noise_level': 0.2,
             'run_id': 0
         },
         'target_policy_param': {
-            'env_noise_level': 0.0,
-            'policy_noise_level': 0.0,
+            'env_noise_level': 0.2,
+            'policy_noise_level': 0.1,
             'run_id': 1
         },
         'behavior_policy_param': {
-            'env_noise_level': 0.0,
-            'policy_noise_level': 0.2,
+            'env_noise_level': 0.2,
+            'policy_noise_level': 0.3,
             'run_id': 1
         },
-        'behavior_dataset_size': 180000,
+        'behavior_dataset_size': 0,  # 180000
         'discount': 0.99,
-    }
+    })
+    return problem_config
+
+
+config_flags.DEFINE_config_dict('problem_config', get_problem_config(),
+                                'ConfigDict instance for problem config.')
+FLAGS = flags.FLAGS
+
+
+def main(_):
+    problem_config = FLAGS.problem_config
 
     # Load the offline dataset and environment.
-    dataset, dev_dataset, environment = load_data_and_env(
+    dataset, dev_dataset, environment = utils.load_data_and_env(
         problem_config['task_name'], problem_config['prob_param'],
         dataset_path=FLAGS.dataset_path,
+        batch_size=FLAGS.batch_size,
         max_dev_size=FLAGS.max_dev_size,
         shuffle=False,
         repeat=False)
@@ -93,13 +92,13 @@ def main(_):
       # Use behavior policy to generate an off-policy dataset and replace
       # the pre-generated offline dataset.
       logging.warning('Ignore offline dataset')
-      dataset = generate_train_data(
+      dataset = utils.generate_train_data(
           task_name=problem_config['task_name'],
           behavior_policy_param=problem_config['behavior_policy_param'],
           dataset_path=FLAGS.dataset_path,
           environment=environment,
           dataset_size=problem_config['behavior_dataset_size'],
-          batch_size=problem_config['behavior_dataset_size'] // 4,
+          batch_size=FLAGS.batch_size,
           shuffle=False)
       dev_dataset = None
 
@@ -116,12 +115,12 @@ def main(_):
         problem_config['task_name'], environment_spec, dataset)
 
     # Create the networks to optimize.
-    value_func, instrumental_feature = make_ope_networks(
+    value_func, instrumental_feature = kiv_batch.make_ope_networks(
         problem_config['task_name'], environment_spec,
         n_component=FLAGS.n_component, gamma=gamma)
 
     # Load pretrained target policy network.
-    target_policy_net = load_policy_net(
+    target_policy_net = utils.load_policy_net(
         task_name=problem_config['task_name'],
         params=problem_config['target_policy_param'],
         environment_spec=environment_spec,
@@ -129,12 +128,15 @@ def main(_):
 
     counter = counting.Counter()
     learner_counter = counting.Counter(counter, prefix='learner')
+    logger = loggers.TerminalLogger('learner')
 
     # The learner updates the parameters (and initializes them).
-    num_batches = len(dataset)
+    num_batches = 0
+    for _ in dataset:
+        num_batches += 1
     stage1_batch = num_batches // 2
     stage2_batch = num_batches - stage1_batch
-    learner = KIVLearner(
+    learner = kiv_batch.KIVLearner(
         value_func=value_func,
         instrumental_feature=instrumental_feature,
         policy_net=target_policy_net,
@@ -145,20 +147,27 @@ def main(_):
         stage2_batch=stage2_batch,
         dataset=dataset,
         valid_dataset=dev_dataset,
-        counter=learner_counter)
+        counter=learner_counter,
+        logger=logger,
+        checkpoint=False)
 
+    eval_counter = counting.Counter(counter, 'eval')
     eval_logger = loggers.TerminalLogger('eval')
 
     while True:
-        learner.step()
-        results = {'gamma': gamma}
-        results.update(ope_evaluation(
+        results = {'gamma': gamma,
+                   'stage1_batch': stage1_batch,
+                   'stage2_batch': stage2_batch,
+                   }
+        # Include learner results in eval results for ease of analysis.
+        results.update(learner.step())
+        results.update(utils.ope_evaluation(
             value_func=value_func,
             policy_net=target_policy_net,
             environment=environment,
             num_init_samples=FLAGS.evaluate_init_samples,
-            mse_samples=18,
-            discount=problem_config['discount']))
+            discount=problem_config['discount'],
+            counter=eval_counter))
         eval_logger.write(results)
         if learner.state['num_steps'] >= FLAGS.max_steps:
             break
