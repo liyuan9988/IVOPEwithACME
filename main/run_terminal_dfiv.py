@@ -161,7 +161,6 @@ def main(_):
             policy_net=target_policy_net,
             environment=environment,
             num_init_samples=FLAGS.evaluate_init_samples,
-            mse_samples=18,
             discount=problem_config['discount'],
             counter=eval_counter))
         eval_logger.write(eval_results)

@@ -8,6 +8,8 @@ from absl import logging
 from acme import specs
 from acme.utils import counting
 from acme.utils import loggers
+import ml_collections as collections
+from ml_collections.config_flags import config_flags
 
 import pathlib
 import sys
@@ -52,16 +54,13 @@ flags.DEFINE_float('d_tm1_weight', 0.01,  # 0.01 for cartpole, 0.03 for catch an
 flags.DEFINE_boolean('include_terminal', False, 'Generate dataset with terminal absorbing state.')
 flags.DEFINE_boolean('ignore_d_tm1', False, 'Always set d_tm1 = 1.0 if True.')
 
-flags.DEFINE_boolean('learner2', False, 'Run Learner2 that learns '
+flags.DEFINE_boolean('learner2', True, 'Run Learner2 that learns '
                      'curr_feature - discount * next_feature in the 1st stage.')
 
 
-FLAGS = flags.FLAGS
-
-
-def main(_):
-    # Load the offline dataset and environment.
-    problem_config = {
+def get_problem_config():
+    """Problem config."""
+    problem_config = collections.ConfigDict({
         'task_name': 'bsuite_cartpole',
         'prob_param': {
             'noise_level': 0.2,
@@ -69,17 +68,27 @@ def main(_):
         },
         'target_policy_param': {
             'env_noise_level': 0.2,
-            'policy_noise_level': 0.0,
+            'policy_noise_level': 0.1,
             'run_id': 1
         },
         'behavior_policy_param': {
             'env_noise_level': 0.2,
-            'policy_noise_level': 0.2,
+            'policy_noise_level': 0.3,
             'run_id': 1
         },
         'behavior_dataset_size': 0,  # 180000
         'discount': 0.99,
-    }
+    })
+    return problem_config
+
+
+config_flags.DEFINE_config_dict('problem_config', get_problem_config(),
+                                'ConfigDict instance for problem config.')
+FLAGS = flags.FLAGS
+
+
+def main(_):
+    problem_config = FLAGS.problem_config
 
     # Load the offline dataset and environment.
     dataset, dev_dataset, environment = utils.load_data_and_env(
@@ -160,7 +169,6 @@ def main(_):
             policy_net=target_policy_net,
             environment=environment,
             num_init_samples=FLAGS.evaluate_init_samples,
-            mse_samples=18,
             discount=problem_config['discount'],
             counter=eval_counter))
         eval_logger.write(eval_results)
