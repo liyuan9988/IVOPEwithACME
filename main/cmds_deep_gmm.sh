@@ -2,6 +2,78 @@
 
 DATASET_PATH="SET_PATH_TO_THE_DATASET"
 
+## Near-policy datasets.
+
+# Valid values: 0.0, 0.1, 0.2, 0.3, 0.4, 0.5
+NOISE_LEVEL=0.0
+
+# bsuite_cartpole
+python run_deep_gmm.py \
+  --config.learner_class=DeepGMMLearner \
+  --config.learner_config.DeepGMMLearner.clipping_action=False \
+  --config.learner_config.DeepGMMLearner.critic_beta1=0.0 \
+  --config.learner_config.DeepGMMLearner.critic_beta2=0.01 \
+  --config.learner_config.DeepGMMLearner.critic_lr=0.0001 \
+  --config.learner_config.DeepGMMLearner.f_beta1=0.0 \
+  --config.learner_config.DeepGMMLearner.f_beta2=0.01 \
+  --config.learner_config.DeepGMMLearner.f_lr=None \
+  --config.learner_config.DeepGMMLearner.f_lr_multiplier=1.0 \
+  --config.network_config.critic_layer_sizes=50,50 \
+  --config.network_config.f_layer_sizes=50,50 \
+  --config.problem_config.use_near_policy_dataset=True \
+  --config.problem_config.behavior_policy_param.env_noise_level=0.0 \
+  --config.problem_config.behavior_policy_param.policy_noise_level=0.3 \
+  --config.problem_config.prob_param.noise_level=$NOISE_LEVEL \
+  --config.problem_config.target_policy_param.env_noise_level=0.0 \
+  --config.problem_config.target_policy_param.policy_noise_level=0.1 \
+  --config.problem_config.task_name=bsuite_cartpole \
+  --dataset_path="$DATASET_PATH"
+
+# bsuite_catch
+python run_deep_gmm.py \
+  --config.learner_class=DeepGMMLearner \
+  --config.learner_config.DeepGMMLearner.clipping_action=False \
+  --config.learner_config.DeepGMMLearner.critic_beta1=0.5 \
+  --config.learner_config.DeepGMMLearner.critic_beta2=0.9 \
+  --config.learner_config.DeepGMMLearner.critic_lr=0.0003 \
+  --config.learner_config.DeepGMMLearner.f_beta1=0.5 \
+  --config.learner_config.DeepGMMLearner.f_beta2=0.9 \
+  --config.learner_config.DeepGMMLearner.f_lr=None \
+  --config.learner_config.DeepGMMLearner.f_lr_multiplier=5.0 \
+  --config.network_config.critic_layer_sizes=50,50 \
+  --config.network_config.f_layer_sizes=100,100 \
+  --config.problem_config.use_near_policy_dataset=True \
+  --config.problem_config.behavior_policy_param.env_noise_level=0.0 \
+  --config.problem_config.behavior_policy_param.policy_noise_level=0.3 \
+  --config.problem_config.prob_param.noise_level=$NOISE_LEVEL \
+  --config.problem_config.target_policy_param.env_noise_level=0.0 \
+  --config.problem_config.target_policy_param.policy_noise_level=0.1 \
+  --config.problem_config.task_name=bsuite_catch \
+  --dataset_path="$DATASET_PATH"
+
+# bsuite_mountain_car
+python run_deep_gmm.py \
+  --config.learner_class=DeepGMMLearner \
+  --config.learner_config.DeepGMMLearner.clipping_action=False \
+  --config.learner_config.DeepGMMLearner.critic_beta1=0.5 \
+  --config.learner_config.DeepGMMLearner.critic_beta2=0.9 \
+  --config.learner_config.DeepGMMLearner.critic_lr=0.0003 \
+  --config.learner_config.DeepGMMLearner.f_beta1=0.5 \
+  --config.learner_config.DeepGMMLearner.f_beta2=0.9 \
+  --config.learner_config.DeepGMMLearner.f_lr=None \
+  --config.learner_config.DeepGMMLearner.f_lr_multiplier=50.0 \
+  --config.network_config.critic_layer_sizes=50,50 \
+  --config.network_config.f_layer_sizes=100,100 \
+  --config.problem_config.use_near_policy_dataset=True \
+  --config.problem_config.behavior_policy_param.env_noise_level=0.0 \
+  --config.problem_config.behavior_policy_param.policy_noise_level=0.3 \
+  --config.problem_config.prob_param.noise_level=$NOISE_LEVEL \
+  --config.problem_config.target_policy_param.env_noise_level=0.0 \
+  --config.problem_config.target_policy_param.policy_noise_level=0.1 \
+  --config.problem_config.task_name=bsuite_mountain_car \
+  --dataset_path="$DATASET_PATH"
+
+
 ## Pure offline datasets. BSuite tasks.
 
 # Valid values: 0.0, 0.1, 0.2, 0.3, 0.4, 0.5

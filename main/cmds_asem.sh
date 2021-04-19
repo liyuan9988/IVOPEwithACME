@@ -2,6 +2,87 @@
 
 DATASET_PATH="SET_PATH_TO_THE_DATASET"
 
+## Near-policy datasets.
+
+# Valid values: 0.0, 0.1, 0.2, 0.3, 0.4, 0.5
+NOISE_LEVEL=0.0
+
+# bsuite_cartpole
+python run_deep_gmm.py \
+  --config.learner_class=AdversarialSEMLearner \
+  --config.learner_config.AdversarialSEMLearner.clipping_action=False \
+  --config.learner_config.AdversarialSEMLearner.critic_beta1=0.5 \
+  --config.learner_config.AdversarialSEMLearner.critic_beta2=0.9 \
+  --config.learner_config.AdversarialSEMLearner.critic_l2_regularizer=1e-10 \
+  --config.learner_config.AdversarialSEMLearner.critic_lr=0.0003 \
+  --config.learner_config.AdversarialSEMLearner.critic_regularizer=1e-08 \
+  --config.learner_config.AdversarialSEMLearner.f_beta1=0.5 \
+  --config.learner_config.AdversarialSEMLearner.f_beta2=0.9 \
+  --config.learner_config.AdversarialSEMLearner.f_l2_regularizer=1e-08 \
+  --config.learner_config.AdversarialSEMLearner.f_lr=None \
+  --config.learner_config.AdversarialSEMLearner.f_lr_multiplier=5.0 \
+  --config.network_config.critic_layer_sizes=50,50 \
+  --config.network_config.f_layer_sizes=150,150 \
+  --config.problem_config.use_near_policy_dataset=True \
+  --config.problem_config.behavior_policy_param.env_noise_level=0.0 \
+  --config.problem_config.behavior_policy_param.policy_noise_level=0.3 \
+  --config.problem_config.prob_param.noise_level=$NOISE_LEVEL \
+  --config.problem_config.target_policy_param.env_noise_level=0.0 \
+  --config.problem_config.target_policy_param.policy_noise_level=0.1 \
+  --config.problem_config.task_name=bsuite_cartpole \
+  --dataset_path="$DATASET_PATH"
+
+# bsuite_catch
+python run_deep_gmm.py \
+  --config.learner_class=AdversarialSEMLearner \
+  --config.learner_config.AdversarialSEMLearner.clipping_action=False \
+  --config.learner_config.AdversarialSEMLearner.critic_beta1=0.5 \
+  --config.learner_config.AdversarialSEMLearner.critic_beta2=0.9 \
+  --config.learner_config.AdversarialSEMLearner.critic_l2_regularizer=1e-08 \
+  --config.learner_config.AdversarialSEMLearner.critic_lr=1e-05 \
+  --config.learner_config.AdversarialSEMLearner.critic_regularizer=1e-10 \
+  --config.learner_config.AdversarialSEMLearner.f_beta1=0.5 \
+  --config.learner_config.AdversarialSEMLearner.f_beta2=0.9 \
+  --config.learner_config.AdversarialSEMLearner.f_l2_regularizer=1e-06 \
+  --config.learner_config.AdversarialSEMLearner.f_lr=None \
+  --config.learner_config.AdversarialSEMLearner.f_lr_multiplier=5.0 \
+  --config.network_config.critic_layer_sizes=50,50 \
+  --config.network_config.f_layer_sizes=100,100 \
+  --config.problem_config.use_near_policy_dataset=True \
+  --config.problem_config.behavior_policy_param.env_noise_level=0.0 \
+  --config.problem_config.behavior_policy_param.policy_noise_level=0.3 \
+  --config.problem_config.prob_param.noise_level=$NOISE_LEVEL \
+  --config.problem_config.target_policy_param.env_noise_level=0.0 \
+  --config.problem_config.target_policy_param.policy_noise_level=0.1 \
+  --config.problem_config.task_name=bsuite_catch \
+  --dataset_path="$DATASET_PATH"
+
+# bsuite_mountain_car
+python run_deep_gmm.py \
+  --config.learner_class=AdversarialSEMLearner \
+  --config.learner_config.AdversarialSEMLearner.clipping_action=False \
+  --config.learner_config.AdversarialSEMLearner.critic_beta1=0.5 \
+  --config.learner_config.AdversarialSEMLearner.critic_beta2=0.9 \
+  --config.learner_config.AdversarialSEMLearner.critic_l2_regularizer=1e-10 \
+  --config.learner_config.AdversarialSEMLearner.critic_lr=0.001 \
+  --config.learner_config.AdversarialSEMLearner.critic_regularizer=1e-08 \
+  --config.learner_config.AdversarialSEMLearner.f_beta1=0.5 \
+  --config.learner_config.AdversarialSEMLearner.f_beta2=0.9 \
+  --config.learner_config.AdversarialSEMLearner.f_l2_regularizer=1e-10 \
+  --config.learner_config.AdversarialSEMLearner.f_lr=None \
+  --config.learner_config.AdversarialSEMLearner.f_lr_multiplier=5.0 \
+  --config.network_config.critic_layer_sizes=50,50 \
+  --config.network_config.f_layer_sizes=100,100 \
+  --config.problem_config.use_near_policy_dataset=True \
+  --config.problem_config.behavior_policy_param.env_noise_level=0.0 \
+  --config.problem_config.behavior_policy_param.policy_noise_level=0.3 \
+  --config.problem_config.prob_param.noise_level=$NOISE_LEVEL \
+  --config.problem_config.target_policy_param.env_noise_level=0.0 \
+  --config.problem_config.target_policy_param.policy_noise_level=0.1 \
+  --config.problem_config.task_name=bsuite_mountain_car \
+  --dataset_path="$DATASET_PATH"
+
+
 ## Pure offline datasets. BSuite tasks.
 
 # Valid values: 0.0, 0.1, 0.2, 0.3, 0.4, 0.5

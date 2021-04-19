@@ -2,6 +2,81 @@
 
 DATASET_PATH="SET_PATH_TO_THE_DATASET"
 
+## Near-policy datasets.
+
+# Valid values: 0.0, 0.1, 0.2, 0.3, 0.4, 0.5
+NOISE_LEVEL=0.0
+
+# bsuite_cartpole
+python run_dfiv.py \
+  --instrumental_iter=1 \
+  --instrumental_layer_sizes=50,50 \
+  --instrumental_learning_rate=0.001 \
+  --instrumental_reg=1e-08 \
+  --learner2=True \
+  --max_steps=200000 \
+  --problem_config.use_near_policy_dataset=True \
+  --problem_config.behavior_policy_param.env_noise_level=0.0 \
+  --problem_config.behavior_policy_param.policy_noise_level=0.3 \
+  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
+  --problem_config.target_policy_param.env_noise_level=0.0 \
+  --problem_config.target_policy_param.policy_noise_level=0.1 \
+  --problem_config.task_name=bsuite_cartpole \
+  --stage1_reg=1e-06 \
+  --stage2_reg=1e-06 \
+  --value_layer_sizes=50,50 \
+  --value_learning_rate=0.0003 \
+  --value_reg=0.0001 \
+  --value_layer_sizes=50,50 \
+  --dataset_path="$DATASET_PATH"
+
+# bsuite_catch
+python run_dfiv.py \
+  --instrumental_iter=1 \
+  --instrumental_layer_sizes=150,150 \
+  --instrumental_learning_rate=0.0001 \
+  --instrumental_reg=1e-06 \
+  --learner2=True \
+  --max_steps=200000 \
+  --problem_config.use_near_policy_dataset=True \
+  --problem_config.behavior_policy_param.env_noise_level=0.0 \
+  --problem_config.behavior_policy_param.policy_noise_level=0.3 \
+  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
+  --problem_config.target_policy_param.env_noise_level=0.0 \
+  --problem_config.target_policy_param.policy_noise_level=0.1 \
+  --problem_config.task_name=bsuite_catch \
+  --stage1_reg=1e-06 \
+  --stage2_reg=1e-06 \
+  --value_layer_sizes=50,50 \
+  --value_learning_rate=0.0003 \
+  --value_reg=1e-06 \
+  --value_layer_sizes=50,50 \
+  --dataset_path="$DATASET_PATH"
+
+# bsuite_mountain_car
+python run_dfiv.py \
+  --instrumental_iter=1 \
+  --instrumental_layer_sizes=50,50 \
+  --instrumental_learning_rate=0.0003 \
+  --instrumental_reg=1e-06 \
+  --learner2=True \
+  --max_steps=200000 \
+  --problem_config.use_near_policy_dataset=True \
+  --problem_config.behavior_policy_param.env_noise_level=0.0 \
+  --problem_config.behavior_policy_param.policy_noise_level=0.3 \
+  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
+  --problem_config.target_policy_param.env_noise_level=0.0 \
+  --problem_config.target_policy_param.policy_noise_level=0.1 \
+  --problem_config.task_name=bsuite_mountain_car \
+  --stage1_reg=0.0001 \
+  --stage2_reg=1e-08 \
+  --value_layer_sizes=50,50 \
+  --value_learning_rate=0.0003 \
+  --value_reg=1e-06 \
+  --value_layer_sizes=50,50 \
+  --dataset_path="$DATASET_PATH"
+
+
 ## Pure offline datasets. BSuite tasks.
 
 # Valid values: 0.0, 0.1, 0.2, 0.3, 0.4, 0.5
