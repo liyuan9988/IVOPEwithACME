@@ -203,7 +203,7 @@ class KIVLearner(acme.Learner, tf2_savers.TFSaveable):
         # calculate training loss for the last batch
         # it may be replaced to validation data
         stage2_loss = None
-        if data is not None:
+        if self._valid_dataset is not None:
             stage2_loss = self.cal_stage2_loss()
 
         self.value_func.weight.assign(self.stage2_weight)
