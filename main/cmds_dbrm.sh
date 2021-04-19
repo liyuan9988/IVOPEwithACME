@@ -2,6 +2,51 @@
 
 DATASET_PATH="SET_PATH_TO_THE_DATASET"
 
+## Near-policy datasets.
+
+# Valid values: 0.0, 0.1, 0.2, 0.3, 0.4, 0.5
+NOISE_LEVEL=0.0
+
+# bsuite_cartpole
+python run_dbrm.py \
+  --learning_rate=0.001 \
+  --layer_sizes="50,50" \
+  --problem_config.use_near_policy_dataset=True \
+  --problem_config.behavior_policy_param.env_noise_level=0.0 \
+  --problem_config.behavior_policy_param.policy_noise_level=0.3 \
+  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
+  --problem_config.target_policy_param.env_noise_level=0.0 \
+  --problem_config.target_policy_param.policy_noise_level=0.1 \
+  --problem_config.task_name=bsuite_cartpole \
+  --dataset_path="$DATASET_PATH"
+
+# bsuite_catch
+python run_dbrm.py \
+  --learning_rate=0.0001 \
+  --layer_sizes="50,50" \
+  --problem_config.use_near_policy_dataset=True \
+  --problem_config.behavior_policy_param.env_noise_level=0.0 \
+  --problem_config.behavior_policy_param.policy_noise_level=0.3 \
+  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
+  --problem_config.target_policy_param.env_noise_level=0.0 \
+  --problem_config.target_policy_param.policy_noise_level=0.1 \
+  --problem_config.task_name=bsuite_catch \
+  --dataset_path="$DATASET_PATH"
+
+# bsuite_mountain_car
+python run_dbrm.py \
+  --learning_rate=0.001 \
+  --layer_sizes="50,50" \
+  --problem_config.use_near_policy_dataset=True \
+  --problem_config.behavior_policy_param.env_noise_level=0.0 \
+  --problem_config.behavior_policy_param.policy_noise_level=0.3 \
+  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
+  --problem_config.target_policy_param.env_noise_level=0.0 \
+  --problem_config.target_policy_param.policy_noise_level=0.1 \
+  --problem_config.task_name=bsuite_mountain_car \
+  --dataset_path="$DATASET_PATH"
+
+
 ## Pure offline datasets. BSuite tasks.
 
 # Valid values: 0.0, 0.1, 0.2, 0.3, 0.4, 0.5
