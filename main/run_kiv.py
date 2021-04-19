@@ -1,5 +1,5 @@
 # python3
-# pylint: disable=bad-indentation,line-too-long
+# pylint: disable=line-too-long
 
 from absl import app
 from absl import flags
@@ -8,7 +8,6 @@ from absl import logging
 from acme import specs
 from acme.utils import counting
 from acme.utils import loggers
-import ml_collections as collections
 from ml_collections.config_flags import config_flags
 
 import pathlib
@@ -43,135 +42,109 @@ flags.DEFINE_integer('evaluate_init_samples', 100, 'Number of initial samples fo
 
 flags.DEFINE_integer('max_steps', 1, 'Max number of steps.')
 
-FLAGS = flags.FLAGS
-
-
-def get_problem_config():
-    """Problem config."""
-    problem_config = collections.ConfigDict({
-        'task_name': 'bsuite_cartpole',
-        'prob_param': {
-            'noise_level': 0.2,
-            'run_id': 0
-        },
-        'target_policy_param': {
-            'env_noise_level': 0.2,
-            'policy_noise_level': 0.1,
-            'run_id': 1
-        },
-        'behavior_policy_param': {
-            'env_noise_level': 0.2,
-            'policy_noise_level': 0.3,
-            'run_id': 1
-        },
-        'behavior_dataset_size': 0,  # 180000
-        'discount': 0.99,
-    })
-    return problem_config
-
-
-config_flags.DEFINE_config_dict('problem_config', get_problem_config(),
+config_flags.DEFINE_config_dict('problem_config', utils.get_problem_config(),
                                 'ConfigDict instance for problem config.')
 FLAGS = flags.FLAGS
 
 
 def main(_):
-    problem_config = FLAGS.problem_config
+  problem_config = FLAGS.problem_config
 
-    # Load the offline dataset and environment.
-    dataset, dev_dataset, environment = utils.load_data_and_env(
-        problem_config['task_name'], problem_config['prob_param'],
+  # Load the offline dataset and environment.
+  dataset, dev_dataset, environment = utils.load_data_and_env(
+      problem_config['task_name'], problem_config['prob_param'],
+      dataset_path=FLAGS.dataset_path,
+      batch_size=FLAGS.batch_size,
+      max_dev_size=FLAGS.max_dev_size,
+      shuffle=False,
+      repeat=False)
+  environment_spec = specs.make_environment_spec(environment)
+
+  if problem_config['use_near_policy_dataset']:
+    # Use a behavior policy to generate a near-policy dataset and replace
+    # the pure offline dataset.
+    logging.info('Using the near-policy dataset.')
+    dataset, dev_dataset = utils.load_near_policy_data(
+        task_name=problem_config['task_name'],
+        prob_param=problem_config['prob_param'],
+        policy_param=problem_config['behavior_policy_param'],
         dataset_path=FLAGS.dataset_path,
         batch_size=FLAGS.batch_size,
+        valid_batch_size=FLAGS.batch_size,
         max_dev_size=FLAGS.max_dev_size,
         shuffle=False,
         repeat=False)
-    environment_spec = specs.make_environment_spec(environment)
 
-    if problem_config['behavior_dataset_size'] > 0:
-      # Use behavior policy to generate an off-policy dataset and replace
-      # the pre-generated offline dataset.
-      logging.warning('Ignore offline dataset')
-      dataset = utils.generate_train_data(
-          task_name=problem_config['task_name'],
-          behavior_policy_param=problem_config['behavior_policy_param'],
-          dataset_path=FLAGS.dataset_path,
-          environment=environment,
-          dataset_size=problem_config['behavior_dataset_size'],
-          batch_size=FLAGS.batch_size,
-          shuffle=False)
-      dev_dataset = None
+  """
+      task_gamma_map = {
+          'bsuite_catch': 0.25,
+          'bsuite_mountain_car': 0.5,
+          'bsuite_cartpole': 0.44,
+      }
+      gamma = FLAGS.gamma or task_gamma_map[problem_config['task_name']]
+  """
 
-    """
-        task_gamma_map = {
-            'bsuite_catch': 0.25,
-            'bsuite_mountain_car': 0.5,
-            'bsuite_cartpole': 0.44,
-        }
-        gamma = FLAGS.gamma or task_gamma_map[problem_config['task_name']]
-    """
+  gamma = utils.get_median(
+      problem_config['task_name'], environment_spec, dataset)
 
-    gamma = utils.get_median(
-        problem_config['task_name'], environment_spec, dataset)
+  # Create the networks to optimize.
+  value_func, instrumental_feature = kiv_batch.make_ope_networks(
+      problem_config['task_name'], environment_spec,
+      n_component=FLAGS.n_component, gamma=gamma)
 
-    # Create the networks to optimize.
-    value_func, instrumental_feature = kiv_batch.make_ope_networks(
-        problem_config['task_name'], environment_spec,
-        n_component=FLAGS.n_component, gamma=gamma)
+  # Load pretrained target policy network.
+  target_policy_net = utils.load_policy_net(
+      task_name=problem_config['task_name'],
+      params=problem_config['target_policy_param'],
+      environment_spec=environment_spec,
+      dataset_path=FLAGS.dataset_path)
 
-    # Load pretrained target policy network.
-    target_policy_net = utils.load_policy_net(
-        task_name=problem_config['task_name'],
-        params=problem_config['target_policy_param'],
-        environment_spec=environment_spec,
-        dataset_path=FLAGS.dataset_path)
+  counter = counting.Counter()
+  learner_counter = counting.Counter(counter, prefix='learner')
+  logger = loggers.TerminalLogger('learner')
 
-    counter = counting.Counter()
-    learner_counter = counting.Counter(counter, prefix='learner')
-    logger = loggers.TerminalLogger('learner')
+  # The learner updates the parameters (and initializes them).
+  num_batches = 0
+  for _ in dataset:
+    num_batches += 1
+  stage1_batch = num_batches // 2
+  stage2_batch = num_batches - stage1_batch
+  learner = kiv_batch.KIVLearner(
+      value_func=value_func,
+      instrumental_feature=instrumental_feature,
+      policy_net=target_policy_net,
+      discount=problem_config['discount'],
+      stage1_reg=FLAGS.stage1_reg,
+      stage2_reg=FLAGS.stage2_reg,
+      stage1_batch=stage1_batch,
+      stage2_batch=stage2_batch,
+      dataset=dataset,
+      valid_dataset=dev_dataset,
+      counter=learner_counter,
+      logger=logger,
+      checkpoint=False)
 
-    # The learner updates the parameters (and initializes them).
-    num_batches = 0
-    for _ in dataset:
-        num_batches += 1
-    stage1_batch = num_batches // 2
-    stage2_batch = num_batches - stage1_batch
-    learner = kiv_batch.KIVLearner(
+  eval_counter = counting.Counter(counter, 'eval')
+  eval_logger = loggers.TerminalLogger('eval')
+
+  while True:
+    results = {'gamma': gamma,
+               'stage1_batch': stage1_batch,
+               'stage2_batch': stage2_batch,
+               }
+    # Include learner results in eval results for ease of analysis.
+    results.update(learner.step())
+    results.update(utils.ope_evaluation(
         value_func=value_func,
-        instrumental_feature=instrumental_feature,
         policy_net=target_policy_net,
+        environment=environment,
+        num_init_samples=FLAGS.evaluate_init_samples,
         discount=problem_config['discount'],
-        stage1_reg=FLAGS.stage1_reg,
-        stage2_reg=FLAGS.stage2_reg,
-        stage1_batch=stage1_batch,
-        stage2_batch=stage2_batch,
-        dataset=dataset,
-        valid_dataset=dev_dataset,
-        counter=learner_counter,
-        logger=logger,
-        checkpoint=False)
-
-    eval_counter = counting.Counter(counter, 'eval')
-    eval_logger = loggers.TerminalLogger('eval')
-
-    while True:
-        results = {'gamma': gamma,
-                   'stage1_batch': stage1_batch,
-                   'stage2_batch': stage2_batch,
-                   }
-        # Include learner results in eval results for ease of analysis.
-        results.update(learner.step())
-        results.update(utils.ope_evaluation(
-            value_func=value_func,
-            policy_net=target_policy_net,
-            environment=environment,
-            num_init_samples=FLAGS.evaluate_init_samples,
-            discount=problem_config['discount'],
-            counter=eval_counter))
-        eval_logger.write(results)
-        if learner.state['num_steps'] >= FLAGS.max_steps:
-            break
+        counter=eval_counter))
+    eval_logger.write(results)
+    if learner.state['num_steps'] >= FLAGS.max_steps:
+      break
 
 
 if __name__ == '__main__':
-    app.run(main)
+  app.run(main)

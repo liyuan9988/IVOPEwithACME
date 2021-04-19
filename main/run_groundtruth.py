@@ -11,7 +11,6 @@ from absl import flags
 from acme import specs
 from acme.agents.tf import actors
 from acme.utils import loggers
-import ml_collections as collections
 from ml_collections.config_flags import config_flags
 import numpy as np
 import tree
@@ -29,26 +28,7 @@ flags.DEFINE_string(
     'Path to offline dataset directory.')
 
 
-def get_problem_config():
-    """Problem config."""
-    problem_config = collections.ConfigDict({
-        'task_name': 'bsuite_cartpole',
-        'prob_param': {
-            'noise_level': 0.2,  # Noise level of the environment to test in.
-            'run_id': 0
-        },
-        'policy_param': {
-            'env_noise_level': 0.2,  # Noise level of the environment from which
-                                     # the policy was trained.
-            'policy_noise_level': 0.1,  # Policy action noise in testing.
-            'run_id': 1
-        },
-        'discount': 0.99,
-    })
-    return problem_config
-
-
-config_flags.DEFINE_config_dict('problem_config', get_problem_config(),
+config_flags.DEFINE_config_dict('problem_config', utils.get_problem_config(),
                                 'ConfigDict instance for problem config.')
 FLAGS = flags.FLAGS
 
@@ -64,10 +44,11 @@ def main(_):
   environment_spec = specs.make_environment_spec(environment)
 
   # Load pretrained target policy network.
-  policy_net = utils.load_policy_net(task_name=problem_config['task_name'],
-                                     params=problem_config['policy_param'],
-                                     environment_spec=environment_spec,
-                                     dataset_path=FLAGS.dataset_path)
+  policy_net = utils.load_policy_net(
+      task_name=problem_config['task_name'],
+      params=problem_config['target_policy_param'],
+      environment_spec=environment_spec,
+      dataset_path=FLAGS.dataset_path)
 
   actor = actors.FeedForwardActor(policy_network=policy_net)
 

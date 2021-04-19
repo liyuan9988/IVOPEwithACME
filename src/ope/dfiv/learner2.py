@@ -64,7 +64,7 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
           instrumental_iter: number of iteration for instrumental net
           value_iter: number of iteration for value function,
           dataset: dataset to learn from.
-          d_tm1_weight: weights for terminal state transitions.
+          d_tm1_weight: weights for terminal state transitions. Ignored in this variant.
           counter: Counter object for (potentially distributed) counting.
           logger: Logger object for writing logs to.
           checkpoint: boolean indicating whether to checkpoint the learner.
@@ -81,7 +81,7 @@ class DFIV2Learner(acme.Learner, tf2_savers.TFSaveable):
         self.discount = discount
         self.value_reg = value_reg
         self.instrumental_reg = instrumental_reg
-        self.d_tm1_weight = d_tm1_weight
+        del d_tm1_weight
 
         # Get an iterator over the dataset.
         self._iterator = iter(dataset)  # pytype: disable=wrong-arg-types

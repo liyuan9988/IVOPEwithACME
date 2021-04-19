@@ -80,7 +80,7 @@ def dataset_params(env):
       'action': env.action_spec().shape,
       'discount': env.discount_spec().shape,
       'reward': env.reward_spec().shape,
-      'episodic_reward': env.reward_spec().shape,
+      # 'episodic_reward': env.reward_spec().shape,
       'step_type': (),
   }
 
@@ -89,7 +89,7 @@ def dataset_params(env):
       'action': env.action_spec().dtype,
       'discount': env.discount_spec().dtype,
       'reward': env.reward_spec().dtype,
-      'episodic_reward': env.reward_spec().dtype,
+      # 'episodic_reward': env.reward_spec().dtype,
       'step_type': np.int64,
   }
 

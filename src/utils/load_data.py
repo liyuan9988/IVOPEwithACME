@@ -1,6 +1,7 @@
 # pylint: disable=bad-indentation,line-too-long,missing-function-docstring
 
 import functools
+import os
 from typing import Any, Dict
 from pathlib import Path
 from acme import specs
@@ -53,7 +54,8 @@ def load_data_and_env(task_name: str,
         bsuite_id = task_name[len("bsuite_"):] + "/0"
         noise_level = params["noise_level"]
         run_id = params["run_id"]
-        path = dataset_path.joinpath(f"bsuite/transitions/{bsuite_id}_{noise_level}/{run_id}_full")
+        path = dataset_path.joinpath(
+            f"bsuite/transitions/{bsuite_id}_{noise_level}/{run_id}_full")
         train_dataset, valid_dataset, environment = load_offline_bsuite_dataset(
             bsuite_id=bsuite_id,
             random_prob=noise_level,
@@ -69,7 +71,8 @@ def load_data_and_env(task_name: str,
         dm_control_task_name = task_name[len("dm_control_"):]
         noise_level = params["noise_level"]
         run_id = params["run_id"]
-        root_path = dataset_path.joinpath(f"dm_control_suite/transitions/{dm_control_task_name}_{noise_level}/")
+        root_path = dataset_path.joinpath(
+            f"dm_control_suite/transitions/{dm_control_task_name}_{noise_level}/")
         data_path = f"{run_id}_full"
         train_dataset, valid_dataset, environment = load_offline_dm_control_dataset(
             task_name=dm_control_task_name,
@@ -85,9 +88,65 @@ def load_data_and_env(task_name: str,
     else:
         raise ValueError(f"task name {task_name} is unknown")
     if max_dev_size is not None:
-      valid_dataset = valid_dataset.take(
-          (max_dev_size + valid_batch_size - 1) // valid_batch_size)
+        valid_dataset = valid_dataset.take(
+            (max_dev_size + valid_batch_size - 1) // valid_batch_size)
     return train_dataset, valid_dataset, environment
+
+
+def get_near_policy_dataset_dir(task_name, prob_param, policy_param,
+                                dataset_path):
+    # Policy training information.
+    policy_train_env_noise_level = policy_param["env_noise_level"]
+    run_id = policy_param["run_id"]
+
+    # Policy action noise.
+    policy_noise_level = policy_param["policy_noise_level"]
+
+    # Environment information.
+    prob_noise_level = prob_param["noise_level"]
+
+    bsuite_id = task_name[len("bsuite_"):] + "/0"
+
+    dataset_path = Path(dataset_path)
+    data_dir = dataset_path.joinpath(
+        f"bsuite_near_policy/transitions/{bsuite_id}/"
+        f"policy_train_env_noise_{policy_train_env_noise_level}_run_{run_id}/"
+        f"policy_noise_{policy_noise_level}/"
+        f"env_noise_{prob_noise_level}")
+    return data_dir
+
+
+def load_near_policy_data(task_name: str,
+                          prob_param: str,
+                          policy_param: str,
+                          dataset_path: str,
+                          batch_size: int,
+                          valid_batch_size: int = 1024,
+                          shuffle: bool = True,  # Shuffle training dataset.
+                          repeat: bool = True,  # Repeat training dataset.
+                          max_dev_size: int = None,
+                          shuffle_buffer_size: int = 100000):
+    if not task_name.startswith("bsuite"):
+      raise ValueError("Near-policy dataset only includes bsuite tasks.")
+    bsuite_id = task_name[len("bsuite_"):] + "/0"
+    prob_noise_level = prob_param["noise_level"]
+    path = str(get_near_policy_dataset_dir(
+        task_name, prob_param, policy_param, dataset_path)) + "/"
+    train_dataset, valid_dataset, _ = load_offline_bsuite_dataset(
+        bsuite_id=bsuite_id,
+        random_prob=prob_noise_level,
+        path=path,
+        batch_size=batch_size,
+        valid_batch_size=valid_batch_size,
+        num_shards=1,
+        num_valid_shards=1,
+        shuffle_buffer_size=shuffle_buffer_size,
+        shuffle=shuffle,
+        repeat=repeat)
+    if max_dev_size is not None:
+        valid_dataset = valid_dataset.take(
+            (max_dev_size + valid_batch_size - 1) // valid_batch_size)
+    return train_dataset, valid_dataset
 
 
 def load_policy_net(

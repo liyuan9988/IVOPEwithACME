@@ -1,5 +1,6 @@
 import functools
 import operator
+import os
 from typing import Tuple
 
 from acme import specs
@@ -114,9 +115,12 @@ def load_offline_bsuite_dataset(
   environment = bsuite.load_from_id(bsuite_id)
   if single_precision_wrapper:
     environment = single_precision.SinglePrecisionWrapper(environment)
-  environment = RandomActionWrapper(environment, random_prob)
+  if random_prob > 0.:
+    environment = RandomActionWrapper(environment, random_prob)
   params = bsuite_offline_dataset.dataset_params(environment)
-  train_path = path + '_train'
+  if os.path.basename(path):
+    path += '_'
+  train_path = path + 'train'
   train_dataset = bsuite_offline_dataset.dataset(
       path=train_path,
       num_threads=num_threads,
@@ -126,7 +130,7 @@ def load_offline_bsuite_dataset(
       shuffle=shuffle,
       repeat=repeat,
       **params)
-  valid_path = path + '_valid'
+  valid_path = path + 'valid'
   valid_dataset = bsuite_offline_dataset.dataset(
       path=valid_path,
       num_threads=num_threads,
