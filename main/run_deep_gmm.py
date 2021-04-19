@@ -1,5 +1,5 @@
 # python3
-# pylint: disable=bad-indentation,line-too-long
+# pylint: disable=line-too-long
 """Run GMM for OPE experiments.
 
 The type of algorithm is determined by config.learner_class.
@@ -40,22 +40,7 @@ def get_config():
   """Algorithm config."""
   config = collections.ConfigDict()
 
-  config.problem_config = collections.ConfigDict(dict(
-      task_name='bsuite_cartpole',
-      prob_param=dict(
-          noise_level=0.2,  # Valid values: 0.0, 0.1, 0.2, 0.3, 0.4, 0.5
-          run_id=0),
-      target_policy_param=dict(
-          env_noise_level=0.2,  # Has to be the same as
-                                # prob_param.env_noise_level.
-          policy_noise_level=0.1,
-          run_id=1),
-      behavior_policy_param=dict(
-          env_noise_level=0.2,
-          policy_noise_level=0.3,
-          run_id=1),
-      behavior_dataset_size=0,  # 180000,
-      discount=0.99))
+  config.problem_config = utils.get_problem_config()
 
   config.agent_config = collections.ConfigDict(dict(
       batch_size=1024,
@@ -213,22 +198,18 @@ def main(_):
       environment_spec=environment_spec,
       dataset_path=FLAGS.dataset_path)
 
-  if problem_config.behavior_dataset_size > 0:
-    # Use behavior policy to generate an off-policy dataset and replace
-    # the pre-generated offline dataset.
-    logging.warning('Ignore offline dataset')
-    dataset = utils.generate_train_data(
+  if problem_config.use_near_policy_dataset:
+    # Use a behavior policy to generate a near-policy dataset and replace
+    # the pure offline dataset.
+    logging.info('Using the near-policy dataset.')
+    dataset, dev_dataset = utils.load_near_policy_data(
         task_name=problem_config.task_name,
-        behavior_policy_param=problem_config.behavior_policy_param,
+        prob_param=problem_config.prob_param,
+        policy_param=problem_config.behavior_policy_param,
         dataset_path=FLAGS.dataset_path,
-        environment=environment,
-        dataset_size=problem_config.behavior_dataset_size,
-        batch_size=agent_config.batch_size,
-        shuffle=True)
-    dev_dataset = None
-    if agent_config.compute_dev_every is not None:
-      raise ValueError('generate_train_data does not support computing'
-                       'hyper-parameter selection.')
+        batch_size=FLAGS.batch_size,
+        valid_batch_size=FLAGS.batch_size,
+        max_dev_size=FLAGS.max_dev_size)
 
   # Create variables.
   action_spec = environment_spec.actions
@@ -303,4 +284,4 @@ def main(_):
 
 
 if __name__ == '__main__':
-    app.run(main)
+  app.run(main)
