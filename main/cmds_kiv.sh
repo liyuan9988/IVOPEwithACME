@@ -19,13 +19,9 @@ N_COMPONENT=1024
 
 # bsuite_cartpole
 python run_kiv.py \
-  --problem_config.use_near_policy_dataset=True \
+  --problem_config.near_policy_dataset=True \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=bsuite_cartpole \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.behavior_policy_param.env_noise_level=0.0 \
-  --problem_config.behavior_policy_param.policy_noise_level=0.3 \
-  --problem_config.target_policy_param.env_noise_level=0.0 \
-  --problem_config.target_policy_param.policy_noise_level=0.1 \
   --n_component=$N_COMPONENT \
   --stage1_reg=$STAGE1_REG \
   --stage2_reg=$STAGE2_REG \
@@ -33,13 +29,9 @@ python run_kiv.py \
 
 # bsuite_catch
 python run_kiv.py \
-  --problem_config.use_near_policy_dataset=True \
+  --problem_config.near_policy_dataset=True \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=bsuite_catch \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.behavior_policy_param.env_noise_level=0.0 \
-  --problem_config.behavior_policy_param.policy_noise_level=0.3 \
-  --problem_config.target_policy_param.env_noise_level=0.0 \
-  --problem_config.target_policy_param.policy_noise_level=0.1 \
   --n_component=$N_COMPONENT \
   --stage1_reg=$STAGE1_REG \
   --stage2_reg=$STAGE2_REG \
@@ -47,13 +39,9 @@ python run_kiv.py \
 
 # bsuite_mountain_car
 python run_kiv.py \
-  --problem_config.use_near_policy_dataset=True \
+  --problem_config.near_policy_dataset=True \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=bsuite_mountain_car \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.behavior_policy_param.env_noise_level=0.0 \
-  --problem_config.behavior_policy_param.policy_noise_level=0.3 \
-  --problem_config.target_policy_param.env_noise_level=0.0 \
-  --problem_config.target_policy_param.policy_noise_level=0.1 \
   --n_component=$N_COMPONENT \
   --stage1_reg=$STAGE1_REG \
   --stage2_reg=$STAGE2_REG \
@@ -80,9 +68,7 @@ python run_kiv.py \
   --n_component=$N_COMPONENT \
   --stage1_reg=$STAGE1_REG \
   --stage2_reg=$STAGE2_REG \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.policy_noise_level=0.1 \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=bsuite_cartpole \
   --dataset_path="$DATASET_PATH"
 
@@ -91,9 +77,7 @@ python run_kiv.py \
   --n_component=$N_COMPONENT \
   --stage1_reg=$STAGE1_REG \
   --stage2_reg=$STAGE2_REG \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.policy_noise_level=0.1 \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=bsuite_catch \
   --dataset_path="$DATASET_PATH"
 
@@ -102,12 +86,9 @@ python run_kiv.py \
   --n_component=$N_COMPONENT \
   --stage1_reg=$STAGE1_REG \
   --stage2_reg=$STAGE2_REG \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.policy_noise_level=0.1 \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=bsuite_mountain_car \
   --dataset_path="$DATASET_PATH"
-
 
 
 
@@ -131,9 +112,7 @@ python run_kiv.py \
   --n_component=$N_COMPONENT \
   --stage1_reg=$STAGE1_REG \
   --stage2_reg=$STAGE2_REG \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.policy_noise_level=0.2 \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=dm_control_cartpole_swingup \
   --dataset_path="$DATASET_PATH"
 
@@ -142,9 +121,7 @@ python run_kiv.py \
   --n_component=$N_COMPONENT \
   --stage1_reg=$STAGE1_REG \
   --stage2_reg=$STAGE2_REG \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.policy_noise_level=0.2 \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=dm_control_cheetah_run \
   --dataset_path="$DATASET_PATH"
 
@@ -153,9 +130,7 @@ python run_kiv.py \
   --n_component=$N_COMPONENT \
   --stage1_reg=$STAGE1_REG \
   --stage2_reg=$STAGE2_REG \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.policy_noise_level=0.2 \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=dm_control_walker_walk \
   --dataset_path="$DATASET_PATH"
 
@@ -164,8 +139,6 @@ python run_kiv.py \
   --n_component=$N_COMPONENT \
   --stage1_reg=$STAGE1_REG \
   --stage2_reg=$STAGE2_REG \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.policy_noise_level=0.2 \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=dm_control_humanoid_run \
   --dataset_path="$DATASET_PATH"

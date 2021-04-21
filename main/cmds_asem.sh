@@ -19,16 +19,11 @@ python run_deep_gmm.py \
   --config.learner_config.AdversarialSEMLearner.f_beta1=0.5 \
   --config.learner_config.AdversarialSEMLearner.f_beta2=0.9 \
   --config.learner_config.AdversarialSEMLearner.f_l2_regularizer=1e-08 \
-  --config.learner_config.AdversarialSEMLearner.f_lr=None \
   --config.learner_config.AdversarialSEMLearner.f_lr_multiplier=5.0 \
   --config.network_config.critic_layer_sizes=50,50 \
   --config.network_config.f_layer_sizes=150,150 \
-  --config.problem_config.use_near_policy_dataset=True \
-  --config.problem_config.behavior_policy_param.env_noise_level=0.0 \
-  --config.problem_config.behavior_policy_param.policy_noise_level=0.3 \
-  --config.problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --config.problem_config.target_policy_param.env_noise_level=0.0 \
-  --config.problem_config.target_policy_param.policy_noise_level=0.1 \
+  --config.problem_config.near_policy_dataset=True \
+  --config.problem_config.noise_level=$NOISE_LEVEL \
   --config.problem_config.task_name=bsuite_cartpole \
   --dataset_path="$DATASET_PATH"
 
@@ -44,16 +39,11 @@ python run_deep_gmm.py \
   --config.learner_config.AdversarialSEMLearner.f_beta1=0.5 \
   --config.learner_config.AdversarialSEMLearner.f_beta2=0.9 \
   --config.learner_config.AdversarialSEMLearner.f_l2_regularizer=1e-06 \
-  --config.learner_config.AdversarialSEMLearner.f_lr=None \
   --config.learner_config.AdversarialSEMLearner.f_lr_multiplier=5.0 \
   --config.network_config.critic_layer_sizes=50,50 \
   --config.network_config.f_layer_sizes=100,100 \
-  --config.problem_config.use_near_policy_dataset=True \
-  --config.problem_config.behavior_policy_param.env_noise_level=0.0 \
-  --config.problem_config.behavior_policy_param.policy_noise_level=0.3 \
-  --config.problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --config.problem_config.target_policy_param.env_noise_level=0.0 \
-  --config.problem_config.target_policy_param.policy_noise_level=0.1 \
+  --config.problem_config.near_policy_dataset=True \
+  --config.problem_config.noise_level=$NOISE_LEVEL \
   --config.problem_config.task_name=bsuite_catch \
   --dataset_path="$DATASET_PATH"
 
@@ -69,16 +59,11 @@ python run_deep_gmm.py \
   --config.learner_config.AdversarialSEMLearner.f_beta1=0.5 \
   --config.learner_config.AdversarialSEMLearner.f_beta2=0.9 \
   --config.learner_config.AdversarialSEMLearner.f_l2_regularizer=1e-10 \
-  --config.learner_config.AdversarialSEMLearner.f_lr=None \
   --config.learner_config.AdversarialSEMLearner.f_lr_multiplier=5.0 \
   --config.network_config.critic_layer_sizes=50,50 \
   --config.network_config.f_layer_sizes=100,100 \
-  --config.problem_config.use_near_policy_dataset=True \
-  --config.problem_config.behavior_policy_param.env_noise_level=0.0 \
-  --config.problem_config.behavior_policy_param.policy_noise_level=0.3 \
-  --config.problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --config.problem_config.target_policy_param.env_noise_level=0.0 \
-  --config.problem_config.target_policy_param.policy_noise_level=0.1 \
+  --config.problem_config.near_policy_dataset=True \
+  --config.problem_config.noise_level=$NOISE_LEVEL \
   --config.problem_config.task_name=bsuite_mountain_car \
   --dataset_path="$DATASET_PATH"
 
@@ -103,9 +88,7 @@ python run_deep_gmm.py \
   --config.learner_config.AdversarialSEMLearner.f_lr_multiplier=1.0 \
   --config.network_config.critic_layer_sizes=50,50 \
   --config.network_config.f_layer_sizes=150,150 \
-  --config.problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --config.problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --config.problem_config.target_policy_param.policy_noise_level=0.1 \
+  --config.problem_config.noise_level=$NOISE_LEVEL \
   --config.problem_config.task_name=bsuite_cartpole \
   --dataset_path="$DATASET_PATH"
 
@@ -124,9 +107,7 @@ python run_deep_gmm.py \
   --config.learner_config.AdversarialSEMLearner.f_lr_multiplier=1.0 \
   --config.network_config.critic_layer_sizes=50,50 \
   --config.network_config.f_layer_sizes=150,150 \
-  --config.problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --config.problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --config.problem_config.target_policy_param.policy_noise_level=0.1 \
+  --config.problem_config.noise_level=$NOISE_LEVEL \
   --config.problem_config.task_name=bsuite_catch \
   --dataset_path="$DATASET_PATH"
 
@@ -145,9 +126,7 @@ python run_deep_gmm.py \
   --config.learner_config.AdversarialSEMLearner.f_lr_multiplier=1.0 \
   --config.network_config.critic_layer_sizes=50,50 \
   --config.network_config.f_layer_sizes=100,100 \
-  --config.problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --config.problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --config.problem_config.target_policy_param.policy_noise_level=0.1 \
+  --config.problem_config.noise_level=$NOISE_LEVEL \
   --config.problem_config.task_name=bsuite_mountain_car \
   --dataset_path="$DATASET_PATH"
 
@@ -173,9 +152,7 @@ python run_deep_gmm.py \
   --config.learner_config.AdversarialSEMLearner.f_lr_multiplier=10.0 \
   --config.network_config.critic_layer_sizes=512,512,256 \
   --config.network_config.f_layer_sizes=768,768,384 \
-  --config.problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --config.problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --config.problem_config.target_policy_param.policy_noise_level=0.2 \
+  --config.problem_config.noise_level=$NOISE_LEVEL \
   --config.problem_config.task_name=dm_control_cartpole_swingup \
   --dataset_path="$DATASET_PATH"
 
@@ -194,9 +171,7 @@ python run_deep_gmm.py \
   --config.learner_config.AdversarialSEMLearner.f_lr_multiplier=10.0 \
   --config.network_config.critic_layer_sizes=512,512,256 \
   --config.network_config.f_layer_sizes=768,768,384 \
-  --config.problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --config.problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --config.problem_config.target_policy_param.policy_noise_level=0.2 \
+  --config.problem_config.noise_level=$NOISE_LEVEL \
   --config.problem_config.task_name=dm_control_cheetah_run \
   --dataset_path="$DATASET_PATH"
 
@@ -215,9 +190,7 @@ python run_deep_gmm.py \
   --config.learner_config.AdversarialSEMLearner.f_lr_multiplier=5.0 \
   --config.network_config.critic_layer_sizes=512,512,256 \
   --config.network_config.f_layer_sizes=1024,1024,512 \
-  --config.problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --config.problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --config.problem_config.target_policy_param.policy_noise_level=0.2 \
+  --config.problem_config.noise_level=$NOISE_LEVEL \
   --config.problem_config.task_name=dm_control_humanoid_run \
   --dataset_path="$DATASET_PATH"
 
@@ -236,8 +209,6 @@ python run_deep_gmm.py \
   --config.learner_config.AdversarialSEMLearner.f_lr_multiplier=10.0 \
   --config.network_config.critic_layer_sizes=512,512,256 \
   --config.network_config.f_layer_sizes=768,768,384 \
-  --config.problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --config.problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --config.problem_config.target_policy_param.policy_noise_level=0.2 \
+  --config.problem_config.noise_level=$NOISE_LEVEL \
   --config.problem_config.task_name=dm_control_walker_walk \
   --dataset_path="$DATASET_PATH"

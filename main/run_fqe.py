@@ -56,7 +56,9 @@ def main(_):
 
   # Load the offline dataset and environment.
   dataset, dev_dataset, environment = utils.load_data_and_env(
-      problem_config['task_name'], problem_config['prob_param'],
+      task_name=problem_config['task_name'],
+      noise_level=problem_config['noise_level'],
+      near_policy_dataset=problem_config['near_policy_dataset'],
       dataset_path=FLAGS.dataset_path,
       batch_size=FLAGS.batch_size,
       max_dev_size=FLAGS.max_dev_size)
@@ -75,22 +77,10 @@ def main(_):
   # Load pretrained target policy network.
   target_policy_net = utils.load_policy_net(
       task_name=problem_config['task_name'],
-      params=problem_config['target_policy_param'],
-      environment_spec=environment_spec,
-      dataset_path=FLAGS.dataset_path)
-
-  if problem_config['use_near_policy_dataset']:
-    # Use a behavior policy to generate a near-policy dataset and replace
-    # the pure offline dataset.
-    logging.info('Using the near-policy dataset.')
-    dataset, dev_dataset = utils.load_near_policy_data(
-        task_name=problem_config['task_name'],
-        prob_param=problem_config['prob_param'],
-        policy_param=problem_config['behavior_policy_param'],
-        dataset_path=FLAGS.dataset_path,
-        batch_size=FLAGS.batch_size,
-        valid_batch_size=FLAGS.batch_size,
-        max_dev_size=FLAGS.max_dev_size)
+      noise_level=problem_config['noise_level'],
+      near_policy_dataset=problem_config['near_policy_dataset'],
+      dataset_path=FLAGS.dataset_path,
+      environment_spec=environment_spec)
 
   counter = counting.Counter()
   learner_counter = counting.Counter(counter, prefix='learner')
