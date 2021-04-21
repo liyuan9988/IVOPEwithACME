@@ -11,12 +11,8 @@ NOISE_LEVEL=0.0
 python run_dbrm.py \
   --learning_rate=0.001 \
   --layer_sizes="50,50" \
-  --problem_config.use_near_policy_dataset=True \
-  --problem_config.behavior_policy_param.env_noise_level=0.0 \
-  --problem_config.behavior_policy_param.policy_noise_level=0.3 \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=0.0 \
-  --problem_config.target_policy_param.policy_noise_level=0.1 \
+  --problem_config.near_policy_dataset=True \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=bsuite_cartpole \
   --dataset_path="$DATASET_PATH"
 
@@ -24,12 +20,8 @@ python run_dbrm.py \
 python run_dbrm.py \
   --learning_rate=0.0001 \
   --layer_sizes="50,50" \
-  --problem_config.use_near_policy_dataset=True \
-  --problem_config.behavior_policy_param.env_noise_level=0.0 \
-  --problem_config.behavior_policy_param.policy_noise_level=0.3 \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=0.0 \
-  --problem_config.target_policy_param.policy_noise_level=0.1 \
+  --problem_config.near_policy_dataset=True \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=bsuite_catch \
   --dataset_path="$DATASET_PATH"
 
@@ -37,12 +29,8 @@ python run_dbrm.py \
 python run_dbrm.py \
   --learning_rate=0.001 \
   --layer_sizes="50,50" \
-  --problem_config.use_near_policy_dataset=True \
-  --problem_config.behavior_policy_param.env_noise_level=0.0 \
-  --problem_config.behavior_policy_param.policy_noise_level=0.3 \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=0.0 \
-  --problem_config.target_policy_param.policy_noise_level=0.1 \
+  --problem_config.near_policy_dataset=True \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=bsuite_mountain_car \
   --dataset_path="$DATASET_PATH"
 
@@ -56,9 +44,7 @@ NOISE_LEVEL=0.0
 python run_dbrm.py \
   --learning_rate=0.001 \
   --layer_sizes="50,50" \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.policy_noise_level=0.1 \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=bsuite_cartpole \
   --dataset_path="$DATASET_PATH"
 
@@ -66,9 +52,7 @@ python run_dbrm.py \
 python run_dbrm.py \
   --learning_rate=0.0001 \
   --layer_sizes="50,50" \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.policy_noise_level=0.1 \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=bsuite_catch \
   --dataset_path="$DATASET_PATH"
 
@@ -76,9 +60,7 @@ python run_dbrm.py \
 python run_dbrm.py \
   --learning_rate=0.001 \
   --layer_sizes="50,50" \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.policy_noise_level=0.1 \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=bsuite_mountain_car \
   --dataset_path="$DATASET_PATH"
 
@@ -92,9 +74,7 @@ NOISE_LEVEL=0.0
 python run_dbrm.py \
   --learning_rate=0.0001 \
   --layer_sizes="512,512,256" \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.policy_noise_level=0.2 \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=dm_control_cartpole_swingup \
   --dataset_path="$DATASET_PATH"
 
@@ -102,9 +82,7 @@ python run_dbrm.py \
 python run_dbrm.py \
   --learning_rate=0.001 \
   --layer_sizes="512,512,256" \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.policy_noise_level=0.2 \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=dm_control_cheetah_run \
   --dataset_path="$DATASET_PATH"
 
@@ -112,9 +90,7 @@ python run_dbrm.py \
 python run_dbrm.py \
   --learning_rate=0.001 \
   --layer_sizes="512,512,256" \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.policy_noise_level=0.2 \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=dm_control_humanoid_run \
   --dataset_path="$DATASET_PATH"
 
@@ -122,8 +98,6 @@ python run_dbrm.py \
 python run_dbrm.py \
   --learning_rate=0.0003 \
   --layer_sizes="512,512,256" \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.policy_noise_level=0.2 \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=dm_control_walker_walk \
   --dataset_path="$DATASET_PATH"

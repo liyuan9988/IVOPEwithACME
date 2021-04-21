@@ -11,12 +11,8 @@ DISTRIBUTIONAL=True
 
 # bsuite_cartpole
 python run_fqe.py \
-  --problem_config.use_near_policy_dataset=True \
-  --problem_config.behavior_policy_param.env_noise_level=0.0 \
-  --problem_config.behavior_policy_param.policy_noise_level=0.3 \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=0.0 \
-  --problem_config.target_policy_param.policy_noise_level=0.1 \
+  --problem_config.near_policy_dataset=True \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=bsuite_cartpole \
   --learning_rate=0.0003 \
   --target_update_period=100 \
@@ -26,12 +22,8 @@ python run_fqe.py \
 
 # bsuite_catch
 python run_fqe.py \
-  --problem_config.use_near_policy_dataset=True \
-  --problem_config.behavior_policy_param.env_noise_level=0.0 \
-  --problem_config.behavior_policy_param.policy_noise_level=0.3 \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=0.0 \
-  --problem_config.target_policy_param.policy_noise_level=0.1 \
+  --problem_config.near_policy_dataset=True \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=bsuite_catch \
   --learning_rate=1e-05 \
   --target_update_period=100 \
@@ -41,12 +33,8 @@ python run_fqe.py \
 
 # bsuite_mountain_car
 python run_fqe.py \
-  --problem_config.use_near_policy_dataset=True \
-  --problem_config.behavior_policy_param.env_noise_level=0.0 \
-  --problem_config.behavior_policy_param.policy_noise_level=0.3 \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=0.0 \
-  --problem_config.target_policy_param.policy_noise_level=0.1 \
+  --problem_config.near_policy_dataset=True \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=bsuite_mountain_car \
   --learning_rate=3e-05 \
   --target_update_period=100 \
@@ -67,9 +55,7 @@ python run_fqe.py \
   --learning_rate=0.0001 \
   --target_update_period=100 \
   --distributional=$DISTRIBUTIONAL \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.policy_noise_level=0.1 \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=bsuite_cartpole \
   --layer_sizes="50,50" \
   --dataset_path="$DATASET_PATH"
@@ -79,9 +65,7 @@ python run_fqe.py \
   --learning_rate=1e-05 \
   --target_update_period=100 \
   --distributional=$DISTRIBUTIONAL \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.policy_noise_level=0.1 \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=bsuite_catch \
   --layer_sizes="50,50" \
   --dataset_path="$DATASET_PATH"
@@ -91,9 +75,7 @@ python run_fqe.py \
   --learning_rate=0.0003 \
   --target_update_period=100 \
   --distributional=$DISTRIBUTIONAL \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.policy_noise_level=0.1 \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=bsuite_mountain_car \
   --layer_sizes="50,50" \
   --dataset_path="$DATASET_PATH"
@@ -111,9 +93,7 @@ python run_fqe.py \
   --learning_rate=0.0003 \
   --target_update_period=100 \
   --distributional=$DISTRIBUTIONAL \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.policy_noise_level=0.2 \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=dm_control_cartpole_swingup \
   --layer_sizes="512,512,256" \
   --dataset_path="$DATASET_PATH"
@@ -123,9 +103,7 @@ python run_fqe.py \
   --learning_rate=3e-05 \
   --target_update_period=100 \
   --distributional=$DISTRIBUTIONAL \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.policy_noise_level=0.2 \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=dm_control_cheetah_run \
   --layer_sizes="512,512,256" \
   --dataset_path="$DATASET_PATH"
@@ -135,9 +113,7 @@ python run_fqe.py \
   --learning_rate=0.0003 \
   --target_update_period=100 \
   --distributional=$DISTRIBUTIONAL \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.policy_noise_level=0.2 \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=dm_control_humanoid_run \
   --layer_sizes="512,512,256" \
   --dataset_path="$DATASET_PATH"
@@ -147,9 +123,7 @@ python run_fqe.py \
   --learning_rate=1e-05 \
   --target_update_period=100 \
   --distributional=$DISTRIBUTIONAL \
-  --problem_config.prob_param.noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.env_noise_level=$NOISE_LEVEL \
-  --problem_config.target_policy_param.policy_noise_level=0.2 \
+  --problem_config.noise_level=$NOISE_LEVEL \
   --problem_config.task_name=dm_control_walker_walk \
   --layer_sizes="512,512,256" \
   --dataset_path="$DATASET_PATH"
