@@ -81,7 +81,8 @@ def dm_control_offline_dataset_dir(dm_control_task_name: str,
                                    dataset_path: str):
     run_id = 0
     root_path = str(dataset_path.joinpath(
-        f"dm_control_suite/transitions/{dm_control_task_name}_{noise_level}/"))
+        "dm_control_suite_stochastic/transitions/"
+        f"{dm_control_task_name}_{noise_level}/"))
     data_path = f"{run_id}_full"
     return root_path, data_path
 
@@ -171,8 +172,8 @@ def dm_control_policy_path(dm_control_task: str,
     run_id = 1
     dataset_path = Path(dataset_path)
     path = str(dataset_path.joinpath(
-        f"dm_control_suite/snapshots/{dm_control_task}_{env_noise_level}/"
-        f"{run_id}_full"))
+        "dm_control_suite_stochastic/snapshots/"
+        f"{dm_control_task}_{env_noise_level}/{run_id}_full"))
     return path
 
 
