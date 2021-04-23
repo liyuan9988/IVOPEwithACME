@@ -17,7 +17,8 @@ import tensorflow as tf
 import trfl
 import sonnet as snt
 
-from src.utils import load_offline_dm_control_dataset, load_offline_bsuite_dataset
+from src.utils import load_offline_bsuite_dataset
+from src.utils import load_offline_dm_control_dataset
 from src.utils import acme_utils
 
 
@@ -78,9 +79,7 @@ def bsuite_offline_dataset_dir(bsuite_id: str,
 def dm_control_offline_dataset_dir(dm_control_task_name: str,
                                    noise_level: float,
                                    dataset_path: str):
-    # dm_control_task_name = task_name[len("dm_control_"):]
-    # noise_level = params["noise_level"]
-    run_id = 0  # params["run_id"]
+    run_id = 0
     root_path = str(dataset_path.joinpath(
         f"dm_control_suite/transitions/{dm_control_task_name}_{noise_level}/"))
     data_path = f"{run_id}_full"
@@ -89,7 +88,6 @@ def dm_control_offline_dataset_dir(dm_control_task_name: str,
 
 def load_data_and_env(task_name: str,
                       noise_level: float,
-                      # params: Dict[str, Any],
                       dataset_path: str,
                       batch_size: int,
                       near_policy_dataset: bool = False,
@@ -148,39 +146,6 @@ def load_data_and_env(task_name: str,
     return train_dataset, valid_dataset, environment
 
 
-# def load_near_policy_data(task_name: str,
-#                           prob_param: str,
-#                           policy_param: str,
-#                           dataset_path: str,
-#                           batch_size: int,
-#                           valid_batch_size: int = 1024,
-#                           shuffle: bool = True,  # Shuffle training dataset.
-#                           repeat: bool = True,  # Repeat training dataset.
-#                           max_dev_size: int = None,
-#                           shuffle_buffer_size: int = 100000):
-#     if not task_name.startswith("bsuite"):
-#       raise ValueError("Near-policy dataset only includes bsuite tasks.")
-#     bsuite_id = task_name[len("bsuite_"):] + "/0"
-#     prob_noise_level = prob_param["noise_level"]
-#     path = str(get_near_policy_dataset_dir(
-#         task_name, prob_param, policy_param, dataset_path)) + "/"
-#     train_dataset, valid_dataset, _ = load_offline_bsuite_dataset(
-#         bsuite_id=bsuite_id,
-#         random_prob=prob_noise_level,
-#         path=path,
-#         batch_size=batch_size,
-#         valid_batch_size=valid_batch_size,
-#         num_shards=1,
-#         num_valid_shards=1,
-#         shuffle_buffer_size=shuffle_buffer_size,
-#         shuffle=shuffle,
-#         repeat=repeat)
-#     if max_dev_size is not None:
-#         valid_dataset = valid_dataset.take(
-#             (max_dev_size + valid_batch_size - 1) // valid_batch_size)
-#     return train_dataset, valid_dataset
-
-
 def bsuite_policy_path(bsuite_id: str,
                        noise_level: float,
                        near_policy_dataset: bool,
@@ -202,9 +167,8 @@ def bsuite_policy_path(bsuite_id: str,
 def dm_control_policy_path(dm_control_task: str,
                            noise_level: float,
                            dataset_path: str):
-    env_noise_level = noise_level  # params["env_noise_level"]
-    run_id = 1  # params["run_id"]
-    # policy_noise_level = 0.2  # params["policy_noise_level"]
+    env_noise_level = noise_level
+    run_id = 1
     dataset_path = Path(dataset_path)
     path = str(dataset_path.joinpath(
         f"dm_control_suite/snapshots/{dm_control_task}_{env_noise_level}/"
