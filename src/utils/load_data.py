@@ -72,7 +72,7 @@ def bsuite_offline_dataset_dir(bsuite_id: str,
     run_id = 0
     dataset_path = Path(dataset_path)
     path = str(dataset_path.joinpath(
-        f"bsuite/transitions/{bsuite_id}_{noise_level}/{run_id}_full"))
+        f"bsuite/{bsuite_id}_{noise_level}/{run_id}_full"))
     return path
 
 
@@ -161,7 +161,8 @@ def bsuite_policy_path(bsuite_id: str,
     # policy_noise_level = 0.1  # params["policy_noise_level"]
     dataset_path = Path(dataset_path)
     path = str(dataset_path.joinpath(
-        f"bsuite/snapshots/{bsuite_id}_{env_noise_level}/{run_id}_full"))
+        "bsuite_near_policy/snapshots/"
+        f"{bsuite_id}_{env_noise_level}/{run_id}_full"))
     return path
 
 
