@@ -1,119 +1,122 @@
 # python3
-# Copyright 2018 DeepMind Technologies Limited. All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# pylint: disable=line-too-long
 
 from absl import app
 from absl import flags
-import acme
+from absl import logging
 
-from acme.agents.tf import actors
-from acme.agents.tf.bc import learning
-from acme.tf import networks as acme_nets
-from acme.tf import utils as tf2_utils
+from acme import specs
 from acme.utils import counting
 from acme.utils import loggers
-from acme import specs
+from ml_collections.config_flags import config_flags
 
-import sonnet as snt
-import tensorflow as tf
-import trfl
-
+import pathlib
 import sys
-from pathlib import Path
 
-ROOT_PATH = str(Path(__file__).resolve().parent.parent)
-sys.path.append(ROOT_PATH)
+ROOT_PATH = pathlib.Path(__file__).resolve().parent.parent
+sys.path.append(str(ROOT_PATH))
 
-from src.load_data import load_policy_net, load_data_and_env
-from src.ope.deepiv import DeepIVLearner, make_ope_networks  # noqa: E402
+from src import utils
+from src.ope import deepiv
 
+
+# Network flags.
+flags.DEFINE_string('density_layer_sizes', '50,50',
+                    'Density network hidden layer sizes.')
+flags.DEFINE_string('value_layer_sizes', '50,50',
+                    'Density network hidden layer sizes.')
+flags.DEFINE_integer('num_cat', 10, 'number of mixture components.')
 
 # Agent flags
+flags.DEFINE_string(
+    'dataset_path',
+    str(ROOT_PATH.joinpath('offline_dataset').joinpath('stochastic')),
+    'Path to offline dataset directory.')
 flags.DEFINE_float('value_learning_rate', 2e-5, 'learning rate for the treatment_net update')
 flags.DEFINE_float('density_learning_rate', 2e-5, 'learning rate for the mixture density net update')
-flags.DEFINE_integer('density_iter', 20, 'number of iteration for instrumental function')
+flags.DEFINE_integer('density_iter', 100000, 'number of iteration for instrumental function')
 flags.DEFINE_integer('n_sampling', 10, 'number of samples generated in stage 2')
-flags.DEFINE_integer('value_iter', 10, 'number of iteration for value function')
+flags.DEFINE_integer('value_iter', 100000, 'number of iteration for value function')
 
-flags.DEFINE_integer('batch_size', 2000, 'Batch size.')
-flags.DEFINE_integer('evaluate_every', 10, 'Evaluation period.')
-flags.DEFINE_integer('evaluation_episodes', 10, 'Evaluation episodes.')
+flags.DEFINE_integer('batch_size', 1024, 'Batch size.')
+flags.DEFINE_integer('max_dev_size', 10*1024, 'Maximum dev dataset size.')
+flags.DEFINE_integer('evaluate_every', 100, 'Evaluation period.')
+flags.DEFINE_integer('evaluate_init_samples', 100, 'Number of initial samples for evaluation.')
 
+
+config_flags.DEFINE_config_dict('problem_config', utils.get_problem_config(),
+                                'ConfigDict instance for problem config.')
 FLAGS = flags.FLAGS
 
-def eval_model(test_data, value_func, policy):
-    current_obs, action, reward, discount, next_obs, _ = test_data.data
-    next_action = policy(next_obs)
-    target = tf.expand_dims(reward, axis=1) + tf.expand_dims(discount, axis=1) * value_func(next_obs, next_action)
-    return tf.norm(target - value_func(current_obs, action)) ** 2
 
 def main(_):
-    problem_config = {
-        "task_name": "dm_control_cartpole_swingup",
-        "prob_param": {
-            "noise_level": 0.0,
-            "run_id": 0
-        },
-        "policy_param": {
-            "noise_level": 0.0,
-            "run_id": 1
-        }
-    }
+  problem_config = FLAGS.problem_config
 
-    # Load the offline dataset and environment.
-    full_dataset, environment = load_data_and_env(problem_config["task_name"], problem_config["prob_param"])
-    environment_spec = specs.make_environment_spec(environment)
+  # Load the offline dataset and environment.
+  dataset, dev_dataset, environment = utils.load_data_and_env(
+      task_name=problem_config['task_name'],
+      noise_level=problem_config['noise_level'],
+      near_policy_dataset=problem_config['near_policy_dataset'],
+      dataset_path=FLAGS.dataset_path,
+      batch_size=FLAGS.batch_size,
+      max_dev_size=FLAGS.max_dev_size)
+  environment_spec = specs.make_environment_spec(environment)
 
-    full_dataset = full_dataset.shuffle(10000)
-    test_data = full_dataset.take(1000)
-    train_data = full_dataset.skip(1000)
-    train_data = train_data.shuffle(20000)
+  # Create the networks to optimize.
+  value_func, mixture_density = deepiv.make_ope_networks(
+      problem_config['task_name'],
+      environment_spec=environment_spec,
+      density_layer_sizes=FLAGS.density_layer_sizes,
+      value_layer_sizes=FLAGS.value_layer_sizes,
+      num_cat=FLAGS.num_cat)
 
-    test_data = test_data.batch(1000)
-    test_data = next(iter(test_data))
+  # Load pretrained target policy network.
+  target_policy_net = utils.load_policy_net(
+      task_name=problem_config['task_name'],
+      noise_level=problem_config['noise_level'],
+      near_policy_dataset=problem_config['near_policy_dataset'],
+      dataset_path=FLAGS.dataset_path,
+      environment_spec=environment_spec)
 
-    dataset = train_data.batch(FLAGS.batch_size)
+  counter = counting.Counter()
+  learner_counter = counting.Counter(counter, prefix='learner')
 
+  # The learner updates the parameters (and initializes them).
+  learner = deepiv.DeepIVLearner(
+      value_func=value_func,
+      mixture_density=mixture_density,
+      policy_net=target_policy_net,
+      discount=problem_config['discount'],
+      value_learning_rate=FLAGS.value_learning_rate,
+      density_learning_rate=FLAGS.density_learning_rate,
+      n_sampling=FLAGS.n_sampling,
+      density_iter=FLAGS.density_iter,
+      dataset=dataset,
+      counter=learner_counter)
 
+  eval_counter = counting.Counter(counter, 'eval')
+  eval_logger = loggers.TerminalLogger('eval')
 
-    # Create the networks to optimize.
-    value_func, mixture_density = make_ope_networks(problem_config["task_name"], environment_spec)
+  while True:
+    learner.step()
+    steps = learner.state['num_steps'].numpy()
 
-    # Load pretrained target policy network.
-    policy_net = load_policy_net(problem_config["task_name"], problem_config["policy_param"])
+    if steps % FLAGS.evaluate_every == 0:
+      eval_results = {}
+      if dev_dataset is not None:
+        eval_results.update(learner.dev_loss(dev_dataset))
+      eval_results.update(utils.ope_evaluation(
+          value_func=value_func,
+          policy_net=target_policy_net,
+          environment=environment,
+          num_init_samples=FLAGS.evaluate_init_samples,
+          discount=problem_config['discount'],
+          counter=eval_counter))
+      eval_logger.write(eval_results)
 
-    counter = counting.Counter()
-    learner_counter = counting.Counter(counter, prefix='learner')
-
-    # The learner updates the parameters (and initializes them).
-    learner = DeepIVLearner(
-        value_func=value_func,
-        mixture_density=mixture_density,
-        policy_net=policy_net,
-        value_learning_rate=FLAGS.value_learning_rate,
-        density_learning_rate=FLAGS.density_learning_rate,
-        n_sampling=FLAGS.n_sampling,
-        density_iter=FLAGS.density_iter,
-        value_iter=FLAGS.value_iter,
-        dataset=dataset,
-        counter=learner_counter)
-
-    while True:
-        for _ in range(FLAGS.evaluate_every):
-            learner.step()
-        print(eval_model(test_data, value_func, policy_net))
+    if steps >= FLAGS.density_iter + FLAGS.value_iter:
+      break
 
 
 if __name__ == '__main__':
-    app.run(main)
+  app.run(main)

@@ -763,6 +763,8 @@ def dataset(root_path: str,
             uint8_features: Optional[Set[str]] = None,
             num_shards: int = 100,
             shuffle_buffer_size: int = 100000,
+            shuffle: bool = True,
+            repeat: bool = True,
             sarsa: bool = True) -> tf.data.Dataset:
   """Create tf dataset for training."""
 
@@ -771,25 +773,35 @@ def dataset(root_path: str,
 
   filenames = [f'{path}-{i:05d}-of-{num_shards:05d}' for i in range(num_shards)]
   file_ds = tf.data.Dataset.from_tensor_slices(filenames)
-  file_ds = file_ds.repeat().shuffle(num_shards)
+  if repeat:
+    file_ds = file_ds.repeat()
+  if shuffle:
+    file_ds = file_ds.shuffle(num_shards)
 
   example_ds = file_ds.interleave(
       functools.partial(tf.data.TFRecordDataset, compression_type='GZIP'),
       cycle_length=tf.data.experimental.AUTOTUNE,
       block_length=5)
-  example_ds = example_ds.shuffle(shuffle_buffer_size)
+  if repeat:
+    example_ds = example_ds.repeat()
+  if shuffle:
+    example_ds = example_ds.shuffle(shuffle_buffer_size)
 
   def map_func(example):
     example = _parse_seq_tf_example(example, uint8_features, shapes)
     return example
   example_ds = example_ds.map(map_func, num_parallel_calls=num_threads)
-  example_ds = example_ds.repeat().shuffle(batch_size * 10)
+  # if repeat:
+  #   example_ds = example_ds.repeat()
+  # if shuffle:
+  #   example_ds = example_ds.shuffle(batch_size * 10)
 
   if sarsa:
     example_ds = example_ds.map(
         _build_sarsa_example,
         num_parallel_calls=tf.data.experimental.AUTOTUNE)
-    example_ds.batch(batch_size)
+    # example_ds = example_ds.batch(batch_size)
+    example_ds = example_ds.batch(batch_size, drop_remainder=True)
   else:
     example_ds = _padded_batch(
         example_ds, batch_size, shapes, drop_remainder=True)
