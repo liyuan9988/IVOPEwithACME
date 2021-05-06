@@ -24,5 +24,5 @@ The following is tested on Ubuntu 16.
     gsutil -m cp -r  gs://rl_unplugged/dm_control_suite_stochastic/ ./
     ```
 
-4. Run scripts `main/*.sh` after altering `DATA_PATH`
+4. Run Python commands in scripts `*.sh` under `main/` folder for each algorithms
 
