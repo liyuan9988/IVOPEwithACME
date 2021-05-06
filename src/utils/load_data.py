@@ -80,6 +80,7 @@ def dm_control_offline_dataset_dir(dm_control_task_name: str,
                                    noise_level: float,
                                    dataset_path: str):
     run_id = 0
+    dataset_path = Path(dataset_path)
     root_path = str(dataset_path.joinpath(
         "dm_control_suite_stochastic/transitions/"
         f"{dm_control_task_name}_{noise_level}/"))
