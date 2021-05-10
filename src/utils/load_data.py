@@ -6,6 +6,7 @@ Otherwise, the target policy is trained in an environment with the same
 noise_level as that to be evaluated.
 """
 
+from absl import logging
 import functools
 import os
 from typing import Any, Dict
@@ -111,6 +112,7 @@ def load_data_and_env(task_name: str,
             # Pure offline dataset.
             path = bsuite_offline_dataset_dir(
                 bsuite_id, noise_level, dataset_path)
+        logging.info("Dataset path: %s", path)
         train_dataset, valid_dataset, environment = load_offline_bsuite_dataset(
             bsuite_id=bsuite_id,
             random_prob=noise_level,
@@ -129,6 +131,8 @@ def load_data_and_env(task_name: str,
         dm_control_task_name = task_name[len("dm_control_"):]
         root_path, data_path = dm_control_offline_dataset_dir(
             dm_control_task_name, noise_level, dataset_path)
+        logging.info("Dataset root path: %s", root_path)
+        logging.info("Dataset file path: %s", data_path)
         train_dataset, valid_dataset, environment = load_offline_dm_control_dataset(
             task_name=dm_control_task_name,
             noise_std=noise_level,
@@ -192,8 +196,8 @@ def load_policy_net(
         bsuite_id = task_name[len("bsuite_"):] + "/0"
         path = bsuite_policy_path(
             bsuite_id, noise_level, near_policy_dataset, dataset_path)
-
-        policy_net = tf.saved_model.load(str(path))
+        logging.info("Policy path: %s", path)
+        policy_net = tf.saved_model.load(path)
 
         policy_noise_level = 0.1  # params["policy_noise_level"]
         observation_network = tf2_utils.to_sonnet_module(functools.partial(
@@ -212,7 +216,8 @@ def load_policy_net(
         dm_control_task = task_name[len("dm_control_"):]
         path = dm_control_policy_path(
             dm_control_task, noise_level, dataset_path)
-        policy_net = tf.saved_model.load(str(path))
+        logging.info("Policy path: %s", path)
+        policy_net = tf.saved_model.load(path)
 
         policy_noise_level = 0.2  # params["policy_noise_level"]
         observation_network = tf2_utils.to_sonnet_module(tf2_utils.batch_concat)
