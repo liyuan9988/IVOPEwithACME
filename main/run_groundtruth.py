@@ -37,18 +37,21 @@ def main(_):
   problem_config = FLAGS.problem_config
 
   # Load the offline dataset and environment.
-  _, _, environment = utils.load_data_and_env(problem_config['task_name'],
-                                              problem_config['prob_param'],
-                                              dataset_path=FLAGS.dataset_path,
-                                              batch_size=1)
+  _, _, environment = utils.load_data_and_env(
+      task_name=problem_config['task_name'],
+      noise_level=problem_config['noise_level'],
+      near_policy_dataset=problem_config['near_policy_dataset'],
+      dataset_path=FLAGS.dataset_path,
+      batch_size=1)
   environment_spec = specs.make_environment_spec(environment)
 
   # Load pretrained target policy network.
   policy_net = utils.load_policy_net(
       task_name=problem_config['task_name'],
-      params=problem_config['target_policy_param'],
-      environment_spec=environment_spec,
-      dataset_path=FLAGS.dataset_path)
+      noise_level=problem_config['noise_level'],
+      near_policy_dataset=problem_config['near_policy_dataset'],
+      dataset_path=FLAGS.dataset_path,
+      environment_spec=environment_spec)
 
   actor = actors.FeedForwardActor(policy_network=policy_net)
 
