@@ -217,7 +217,7 @@ def load_policy_net(
         path = dm_control_policy_path(
             dm_control_task, noise_level, dataset_path)
         logging.info("Policy path: %s", path)
-        policy_net = tf.saved_model.load(str(path))
+        policy_net = tf.saved_model.load(path)
 
         policy_noise_level = 0.2  # params["policy_noise_level"]
         observation_network = tf2_utils.to_sonnet_module(tf2_utils.batch_concat)
